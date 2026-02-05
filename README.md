@@ -1,5 +1,7 @@
 # Omnilore Scheduler
 
+By Andrew Chang 
+
 A course scheduler for Omnilore.
 
 ## Documentation
