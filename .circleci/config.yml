@@ -14,20 +14,20 @@ jobs:
       # Steps adapted from the official flutter orb
       - restore_cache:
           keys:
-            - flutter-3.19.2-{{ arch }}
+            - flutter-3.41.0-{{ arch }}
       - run:
           name: Install Flutter SDK if not exists
           command: |
             if [ ! -d ~/development/flutter ]; then
               mkdir -p ~/development
-              curl -o flutter_sdk.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.19.2-stable.zip
+              curl -o flutter_sdk.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_3.41.0-stable.zip
               unzip -qq flutter_sdk.zip -d ~/development
               rm flutter_sdk.zip
             fi
             echo 'export PATH=~/development/flutter/bin:$PATH' >> $BASH_ENV
       - run: flutter doctor
       - save_cache:
-          key: flutter-3.19.2-{{ arch }}
+          key: flutter-3.41.0-{{ arch }}
           paths:
             - ~/development
       - restore_cache:
@@ -57,13 +57,13 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - flutter-3.19.2-{{ arch }}
+            - flutter-3.41.0-{{ arch }}
       - run:
           name: Install Flutter SDK if not exists
           command: |
             if [ ! -d ~/development/flutter ]; then
               mkdir -p ~/development
-              curl -o flutter_sdk.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.19.2-stable.zip
+              curl -o flutter_sdk.zip https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.41.0-stable.zip
               unzip -qq flutter_sdk.zip -d ~/development
               rm flutter_sdk.zip
             fi
@@ -73,7 +73,7 @@ jobs:
           command: flutter doctor
           shell: bash.exe
       - save_cache:
-          key: flutter-3.19.2-{{ arch }}
+          key: flutter-3.41.0-{{ arch }}
           paths:
             - ~\development
       - restore_cache:
