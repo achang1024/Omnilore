@@ -11,6 +11,9 @@ jobs:
     steps:
       - macos/install-rosetta
       - checkout
+      - run:
+          name: Check platform gating imports
+          command: ./scripts/check_platform_gating.sh
       # Steps adapted from the official flutter orb
       - restore_cache:
           keys:
@@ -55,6 +58,10 @@ jobs:
     executor: win/default
     steps:
       - checkout
+      - run:
+          name: Check platform gating imports
+          command: ./scripts/check_platform_gating.sh
+          shell: bash.exe
       - restore_cache:
           keys:
             - flutter-3.19.2-{{ arch }}

@@ -1,13 +1,16 @@
 import 'dart:collection';
-import 'dart:convert';
-import 'dart:io';
 
+import 'package:omnilore_scheduler/io/text_file_store.dart';
+import 'package:omnilore_scheduler/io/text_file_store_factory.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
 import 'package:omnilore_scheduler/model/person.dart';
 
 class People {
+  People({TextFileStore? fileStore}) : _fileStore = fileStore ?? createTextFileStore();
+
   /// A list of people, ordered as is presented in the input file
   HashMap<String, Person> people = HashMap<String, Person>();
+  final TextFileStore _fileStore;
 
   /// Maximum name length
   int maxLength = 10;
@@ -34,9 +37,7 @@ class People {
   /// ```
   Future<int> loadPeople(String inputFile) async {
     people.clear();
-    var file = File(inputFile);
-    var lines =
-        file.openRead().transform(utf8.decoder).transform(const LineSplitter());
+    var lines = _fileStore.readLines(inputFile);
     var numLines = 0;
     await for (var line in lines) {
       if (line.isEmpty) continue;
