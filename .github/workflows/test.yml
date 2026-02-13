@@ -17,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Check platform gating imports
+        run: ./scripts/check_platform_gating.sh
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.0'

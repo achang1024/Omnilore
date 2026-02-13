@@ -1,12 +1,15 @@
 import 'dart:collection';
-import 'dart:convert';
-import 'dart:io';
 
+import 'package:omnilore_scheduler/io/text_file_store.dart';
+import 'package:omnilore_scheduler/io/text_file_store_factory.dart';
 import 'package:omnilore_scheduler/model/course.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
 
 class Courses {
+  Courses({TextFileStore? fileStore}) : _fileStore = fileStore ?? createTextFileStore();
+
   final HashMap<String, Course> _courses = HashMap<String, Course>();
+  final TextFileStore _fileStore;
 
   /// Get an iterable list of course codes
   ///
@@ -48,9 +51,7 @@ class Courses {
   /// ```
   Future<int> loadCourses(String inputFile) async {
     _courses.clear();
-    var file = File(inputFile);
-    var lines =
-        file.openRead().transform(utf8.decoder).transform(const LineSplitter());
+    var lines = _fileStore.readLines(inputFile);
     var numLines = 0;
     await for (var line in lines) {
       if (line.isEmpty) continue;

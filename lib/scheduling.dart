@@ -1,10 +1,10 @@
-import 'dart:io';
-
 import 'package:omnilore_scheduler/compute/course_control.dart';
 import 'package:omnilore_scheduler/compute/overview_data.dart';
 import 'package:omnilore_scheduler/compute/schedule_control.dart';
 import 'package:omnilore_scheduler/compute/split_control.dart';
 import 'package:omnilore_scheduler/compute/validate.dart';
+import 'package:omnilore_scheduler/io/text_file_store.dart';
+import 'package:omnilore_scheduler/io/text_file_store_factory.dart';
 import 'package:omnilore_scheduler/model/change.dart';
 import 'package:omnilore_scheduler/model/course.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
@@ -14,7 +14,12 @@ import 'package:omnilore_scheduler/store/courses.dart';
 import 'package:omnilore_scheduler/store/people.dart';
 
 class Scheduling {
-  Scheduling() {
+  Scheduling({TextFileStore? fileStore})
+      : this._(fileStore ?? createTextFileStore());
+
+  Scheduling._(this._fileStore)
+      : _courses = Courses(fileStore: _fileStore),
+        _people = People(fileStore: _fileStore) {
     overviewData = OverviewData(_courses, _people);
     courseControl = CourseControl(_courses);
     splitControl = SplitControl(_courses, _people);
@@ -27,8 +32,9 @@ class Scheduling {
   }
 
   // Shared data
-  final _courses = Courses();
-  final _people = People();
+  final TextFileStore _fileStore;
+  final Courses _courses;
+  final People _people;
   final _validate = Validate();
 
   // Compute modules
@@ -193,15 +199,16 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    _fileStore.writeStringSync(path, content);
   }
 
   /// Output roster with phone number
   void outputRosterPhone(String path) {
     var state = getStateOfProcessing();
     if (state != StateOfProcessing.coordinator &&
-        state != StateOfProcessing.output) return;
+        state != StateOfProcessing.output) {
+      return;
+    }
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
@@ -228,8 +235,7 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    _fileStore.writeStringSync(path, content);
   }
 
   /// Output mail merge file
@@ -250,9 +256,8 @@ class Scheduling {
       }
     }
     var dropped = courseControl.getDropped();
-    var output = File(path);
     // This truncates existing file
-    output.writeAsStringSync('');
+    _fileStore.writeStringSync(path, '');
 
     // Output one line for each person
     for (var person in peopleSorted) {
@@ -308,7 +313,7 @@ class Scheduling {
         }
         line[17 + i * 3] = courseData.reading;
       }
-      output.writeAsStringSync('${line.join('\t')}\n', mode: FileMode.append);
+      _fileStore.writeStringSync(path, '${line.join('\t')}\n', append: true);
     }
   }
 
@@ -410,14 +415,12 @@ class Scheduling {
         content += '\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    _fileStore.writeStringSync(path, content);
   }
 
   /// Load intermediate state
   void loadState(String path) {
-    var input = File(path);
-    List<String> lines = input.readAsLinesSync();
+    List<String> lines = _fileStore.readLinesSync(path);
     var i = 0;
     // Setting
     while (lines[i].trim() != 'Setting:') {
