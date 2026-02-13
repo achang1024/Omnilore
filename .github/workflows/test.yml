@@ -21,7 +21,7 @@ jobs:
         run: ./scripts/check_platform_gating.sh
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.2'
+          flutter-version: '3.41.0'
           channel: 'stable'
 
       - name: Get dependencies
