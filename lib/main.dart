@@ -60,16 +60,16 @@ class MyApp extends StatelessWidget {
         primarySwatch: primaryBlack,
         textButtonTheme: TextButtonThemeData(
           style: ButtonStyle(
-            overlayColor: MaterialStateProperty.all(
+            overlayColor: WidgetStateProperty.all(
                 Colors.blueGrey[600]), // Set Button hover color
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: MaterialStateProperty.all(Colors.black),
+            foregroundColor: WidgetStateProperty.all(Colors.black),
             backgroundColor:
-                MaterialStateProperty.all(themeColors['WhiteBlue']),
-            overlayColor: MaterialStateProperty.all(
+                WidgetStateProperty.all(themeColors['WhiteBlue']),
+            overlayColor: WidgetStateProperty.all(
                 Colors.blueGrey[600]), // Set Button hover color
           ),
         ),

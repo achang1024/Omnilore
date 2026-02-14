@@ -22,13 +22,25 @@ class ClassNameDisplay extends StatefulWidget {
       required this.currentRow,
       required this.currentClass,
       required this.schedule,
-      required this.people})
+      required this.people,
+      this.isShowingSplitPreview = false,
+      this.tempSplitResult = const {},
+      this.currentSplitGroupSelected,
+      this.onMovePerson,
+      this.onSelectSplitGroup,
+      this.onCancelSplitPreview})
       : super(key: key);
 
   final RowType currentRow;
   final String? currentClass;
   final Scheduling schedule;
   final List<String> people;
+  final bool isShowingSplitPreview;
+  final Map<int, Set<String>> tempSplitResult;
+  final int? currentSplitGroupSelected;
+  final void Function(String person, int fromGroup, int toGroup)? onMovePerson;
+  final void Function(int groupNum)? onSelectSplitGroup;
+  final void Function()? onCancelSplitPreview;
 
   @override
   State<StatefulWidget> createState() => ClassNameDisplayState();
@@ -120,6 +132,11 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
 
   @override
   Widget build(BuildContext context) {
+    // Show split preview if in split preview mode
+    if (widget.isShowingSplitPreview && widget.tempSplitResult.isNotEmpty) {
+      return _buildSplitPreview();
+    }
+    
     return Container(
       color: themeColors['MoreBlue'],
       child: Column(children: [
@@ -242,6 +259,138 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
         Container(
           color: Colors.white,
         )
+      ]),
+    );
+  }
+
+  /// Build the split preview UI
+  Widget _buildSplitPreview() {
+    return Container(
+      color: themeColors['MoreBlue'],
+      child: Column(children: [
+        Container(
+          alignment: Alignment.center,
+          child: const Text('SPLIT PREVIEW',
+              style: TextStyle(fontStyle: FontStyle.normal, fontSize: 25)),
+        ),
+        Container(
+          alignment: Alignment.center,
+          child: const Text('Select a group and move students between groups',
+              style: TextStyle(fontSize: 15)),
+        ),
+        // Split group selector buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            if (widget.currentSplitGroupSelected != null &&
+                widget.currentSplitGroupSelected! > 0)
+              ElevatedButton(
+                  onPressed: () {
+                    widget.onSelectSplitGroup
+                        ?.call(widget.currentSplitGroupSelected! - 1);
+                  },
+                  child: const Text('← Prev Group')),
+            ...List.generate(widget.tempSplitResult.length, (index) {
+              bool isSelected =
+                  widget.currentSplitGroupSelected == index;
+              int groupSize = widget.tempSplitResult[index]?.length ?? 0;
+              return ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: isSelected
+                          ? Colors.blue[700]
+                          : Colors.blue[100]),
+                  onPressed: () {
+                    widget.onSelectSplitGroup?.call(index);
+                  },
+                  child: Text(
+                    'Group ${index + 1}\n($groupSize)',
+                    style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.black),
+                  ));
+            }),
+            if (widget.currentSplitGroupSelected != null &&
+                widget.currentSplitGroupSelected! <
+                    widget.tempSplitResult.length - 1)
+              ElevatedButton(
+                  onPressed: () {
+                    widget.onSelectSplitGroup
+                        ?.call(widget.currentSplitGroupSelected! + 1);
+                  },
+                  child: const Text('Next Group →')),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            if (widget.currentSplitGroupSelected != null)
+              Text(
+                'Group ${widget.currentSplitGroupSelected! + 1} of ${widget.tempSplitResult.length}',
+                style:
+                    const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              )
+          ],
+        ),
+        // Display members of selected group with move buttons
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                if (widget.people.isNotEmpty && widget.currentSplitGroupSelected != null)
+                  Wrap(
+                    direction: Axis.horizontal,
+                    children: [
+                      for (String person in widget.people)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: clusterColors[
+                                        widget.currentSplitGroupSelected! %
+                                            clusterColors.length]),
+                                onPressed: null,
+                                child: Text(person,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold))),
+                            if (widget.currentSplitGroupSelected! > 0)
+                              IconButton(
+                                  onPressed: () {
+                                    widget.onMovePerson?.call(
+                                        person,
+                                        widget.currentSplitGroupSelected!,
+                                        widget.currentSplitGroupSelected! - 1);
+                                  },
+                                  icon: const Icon(Icons.arrow_left)),
+                            if (widget.currentSplitGroupSelected! <
+                                widget.tempSplitResult.length - 1)
+                              IconButton(
+                                  onPressed: () {
+                                    widget.onMovePerson?.call(
+                                        person,
+                                        widget.currentSplitGroupSelected!,
+                                        widget.currentSplitGroupSelected! + 1);
+                                  },
+                                  icon: const Icon(Icons.arrow_right)),
+                          ],
+                        )
+                    ],
+                  )
+                else
+                  const Text('No students in this group'),
+              ],
+            ),
+          ),
+        ),
+        // Cancel button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            ElevatedButton(
+                onPressed: widget.onCancelSplitPreview,
+                child: const Text('Cancel')),
+          ],
+        ),
       ]),
     );
   }
