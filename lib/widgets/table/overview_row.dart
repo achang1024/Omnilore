@@ -12,6 +12,7 @@ enum RowType {
   dropFull,
   resultingClass,
   unmetWants,
+  splitPreview,
   none,
 }
 

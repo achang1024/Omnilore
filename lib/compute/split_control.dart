@@ -151,6 +151,39 @@ class SplitControl {
     resetState();
   }
 
+  /// Apply a custom split with the given modified result
+  /// Used when user has modified the split result in the preview
+  void applySplit(String course, Map<int, Set<String>> customResult) {
+    if (customResult.isEmpty) return;
+
+    // Update people's choices
+    for (var splitIndex = 0; splitIndex < customResult.length; splitIndex++) {
+      if (customResult.containsKey(splitIndex)) {
+        for (var person in customResult[splitIndex]!) {
+          var classIndex = _people.people[person]!.firstChoices
+              .indexWhere((element) => element == course);
+          if (classIndex != -1) {
+            _people.people[person]!.firstChoices.replaceRange(
+                classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
+          } else {
+            classIndex = _people.people[person]!.backups
+                .indexWhere((element) => element == course);
+            if (classIndex != -1) {
+              _people.people[person]!.backups.replaceRange(
+                  classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
+            }
+          }
+        }
+      }
+    }
+
+    // Update course data
+    _courses.splitCourse(course, customResult.length);
+
+    _scheduling.compute(Change.course);
+    resetState();
+  }
+
   /// Compute the result of splitting without implementing the split
   List<Set<String>> getSplitResult(String course) {
     var clusterData = List<Set<String>>.from(_clusters);

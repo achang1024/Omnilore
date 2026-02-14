@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:omnilore_scheduler/compute/course_control.dart';
@@ -85,6 +86,173 @@ class Scheduling {
       compute(Change.course);
     }
     return numCourses;
+  }
+
+  /// Loads courses from bytes (used for web file picker)
+  Future<int> loadCoursesFromBytes(List<int> bytes) async {
+    if (_courses.getNumCourses() != 0) {
+      throw UnexpectedFatalException();
+    }
+    int numCourses;
+    numCourses = await _courses.loadCoursesFromBytes(bytes);
+    if (numCourses != 0) {
+      compute(Change.course);
+    }
+    return numCourses;
+  }
+
+  /// Loads people from bytes (used for web file picker)
+  Future<int> loadPeopleFromBytes(List<int> bytes) async {
+    var numPeople = await _people.loadPeopleFromBytes(bytes);
+    if (numPeople != 0) {
+      compute(Change.people);
+    }
+    return numPeople;
+  }
+
+  /// Loads state from bytes (used for web file picker)
+  void loadStateFromBytes(List<int> bytes) {
+    var content = utf8.decode(bytes);
+    List<String> lines = content.split('\n');
+    var i = 0;
+    // Setting
+    while (lines[i].trim() != 'Setting:') {
+      i += 1;
+    }
+    i += 1;
+    int minSize = int.parse(lines[i].split(':')[1].trim());
+    i += 1;
+    int maxSize = int.parse(lines[i].split(':')[1].trim());
+    courseControl.setGlobalMinMaxClassSize(minSize, maxSize);
+
+    // Course size
+    while (lines[i].trim() != 'Course size:') {
+      i += 1;
+    }
+    i += 1;
+    while (true) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+      if (lines[i].trim() == 'Drop:') {
+        i += 1;
+        break;
+      }
+      var course = lines[i].split(':')[0].trim();
+      var setting = lines[i].split(':')[1].trim();
+      var classMinSize = int.parse(setting.split(',')[0].trim());
+      var classMaxSize = int.parse(setting.split(',')[1].trim());
+      courseControl.setMinMaxClassSizeForClass(
+          course, classMinSize, classMaxSize);
+      i += 1;
+    }
+
+    // Drop
+    while (true) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+      if (lines[i].trim() == 'Limit:') {
+        i += 1;
+        break;
+      }
+      var course = lines[i].trim();
+      courseControl.drop(course, noCompute: true);
+      i += 1;
+    }
+    compute(Change.drop);
+
+    // Limit
+    while (true) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+      if (lines[i].trim() == 'Split:') {
+        i += 1;
+        break;
+      }
+      var course = lines[i].trim();
+      courseControl.setSplitMode(course, SplitMode.limit);
+      i += 1;
+    }
+
+    // Split
+    while (true) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+      if (lines[i].trim() == 'Schedule:') {
+        i += 1;
+        break;
+      }
+      var course = lines[i].split(':')[1].trim();
+      i += 1;
+      while (lines[i].split(':')[0].trim() == 'Cluster') {
+        var clusterStr = lines[i].split(':')[1].trim();
+        var cluster = Set<String>.from(
+            clusterStr.split(',').map((person) => person.trim()));
+        splitControl.addCluster(cluster);
+        i += 1;
+      }
+      splitControl.split(course, noCompute: true);
+    }
+    compute(Change.course);
+
+    // Schedule
+    while (true) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+      if (lines[i].trim() == 'Coordinator:') {
+        i += 1;
+        break;
+      }
+
+      var data = lines[i].split(':').map((e) => e.trim()).toList();
+      var index = int.parse(data[1]);
+      if (index >= 0) {
+        scheduleControl.schedule(data[0], index, noCompute: true);
+      }
+      i += 1;
+    }
+    compute(Change.schedule);
+
+    // Coordinator
+    while (i < lines.length) {
+      if (lines[i].isEmpty) {
+        i += 1;
+        continue;
+      }
+
+      var course = lines[i].split(':')[0].trim();
+      var data = lines[i]
+          .split(':')[1]
+          .trim()
+          .split(',')
+          .map((e) => e.trim())
+          .toList();
+      if (data[0] == 'equal') {
+        if (data.length >= 2) {
+          courseControl.setEqualCoCoordinator(course, data[1]);
+        }
+        if (data.length >= 3) {
+          courseControl.setEqualCoCoordinator(course, data[2]);
+        }
+      } else {
+        if (data.length >= 2) {
+          courseControl.setMainCoCoordinator(course, data[1]);
+        }
+        if (data.length >= 3) {
+          courseControl.setMainCoCoordinator(course, data[2]);
+        }
+      }
+      i += 1;
+    }
   }
 
   /// Get a list of people, ordered as is presented in the input file
@@ -201,7 +369,9 @@ class Scheduling {
   void outputRosterPhone(String path) {
     var state = getStateOfProcessing();
     if (state != StateOfProcessing.coordinator &&
-        state != StateOfProcessing.output) return;
+        state != StateOfProcessing.output) {
+      return;
+    }
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
