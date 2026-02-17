@@ -157,21 +157,20 @@ class SplitControl {
     if (customResult.isEmpty) return;
 
     // Update people's choices
-    for (var splitIndex = 0; splitIndex < customResult.length; splitIndex++) {
-      if (customResult.containsKey(splitIndex)) {
-        for (var person in customResult[splitIndex]!) {
-          var classIndex = _people.people[person]!.firstChoices
+    for (var entry in customResult.entries) {
+      var splitIndex = entry.key;
+      for (var person in entry.value) {
+        var classIndex = _people.people[person]!.firstChoices
+            .indexWhere((element) => element == course);
+        if (classIndex != -1) {
+          _people.people[person]!.firstChoices.replaceRange(
+              classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
+        } else {
+          classIndex = _people.people[person]!.backups
               .indexWhere((element) => element == course);
           if (classIndex != -1) {
-            _people.people[person]!.firstChoices.replaceRange(
+            _people.people[person]!.backups.replaceRange(
                 classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
-          } else {
-            classIndex = _people.people[person]!.backups
-                .indexWhere((element) => element == course);
-            if (classIndex != -1) {
-              _people.people[person]!.backups.replaceRange(
-                  classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
-            }
           }
         }
       }
@@ -180,7 +179,6 @@ class SplitControl {
     // Update course data
     _courses.splitCourse(course, customResult.length);
 
-    _scheduling.compute(Change.course);
     resetState();
   }
 

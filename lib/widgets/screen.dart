@@ -139,28 +139,27 @@ class _ScreenState extends State<Screen> {
   /// Implement the split with the current tempSplitResult
   void _implementSplit() {
     if (splitCourseInProgress == null) return;
-    
+
     try {
       // Apply the modified split
       schedule.splitControl.applySplit(splitCourseInProgress!, tempSplitResult);
-      
-      setState(() {
-        var newCourses = schedule.getCourseCodes();
-        droppedList.insertAll(
-            courses.indexOf(splitCourseInProgress!),
-            List<bool>.filled(
-                newCourses.length - courses.length,
-                false));
-        
-        // Reset split preview state
-        isShowingSplitPreview = false;
-        tempSplitResult.clear();
-        splitCourseInProgress = null;
-        currentSplitGroupSelected = null;
-        currentClass = null;
-        currentRow = RowType.none;
-        curClassRoster = [];
-      });
+
+      var newCourses = schedule.getCourseCodes();
+      droppedList.insertAll(
+          courses.indexOf(splitCourseInProgress!),
+          List<bool>.filled(
+              newCourses.length - courses.length,
+              false));
+
+      // Reset split preview state
+      isShowingSplitPreview = false;
+      tempSplitResult.clear();
+      splitCourseInProgress = null;
+      currentSplitGroupSelected = null;
+      currentClass = null;
+      currentRow = RowType.none;
+      curClassRoster = [];
+
       compute(Change.course);
     } catch (e) {
       if (mounted) {
