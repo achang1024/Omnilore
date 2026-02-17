@@ -400,6 +400,15 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
     if (row == RowType.className) {
       return _getRowDescription(RowType.resultingClass);
     }
+    if (row == RowType.splitPreview) {
+      return 'Split Preview';
+    }
+    if (row == RowType.unmetWants) {
+      return 'Unmet Wants';
+    }
+    if (row.index - 1 < 0 || row.index - 1 >= overviewRows.length) {
+      return '';
+    }
     return overviewRows[row.index - 1];
   }
 }
