@@ -176,9 +176,29 @@ class SplitControl {
       }
     }
 
+    // Update backups for people not in the resulting class
+    // Assign each backup person to the smallest split group
+    for (var person in _people.people.values) {
+      var backupIndex = person.backups.indexWhere((e) => e == course);
+      if (backupIndex != -1) {
+        // Find the smallest group to assign this backup to
+        var minSize = customResult.values.first.length;
+        var minKey = customResult.keys.first;
+        for (var entry in customResult.entries) {
+          if (entry.value.length < minSize) {
+            minSize = entry.value.length;
+            minKey = entry.key;
+          }
+        }
+        person.backups.replaceRange(
+            backupIndex, backupIndex + 1, ['$course${minKey + 1}']);
+      }
+    }
+
     // Update course data
     _courses.splitCourse(course, customResult.length);
 
+    _scheduling.compute(Change.course);
     resetState();
   }
 
