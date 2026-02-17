@@ -113,7 +113,7 @@ class Scheduling {
   /// Loads state from bytes (used for web file picker)
   void loadStateFromBytes(List<int> bytes) {
     var content = utf8.decode(bytes);
-    List<String> lines = content.split('\n');
+    List<String> lines = const LineSplitter().convert(content);
     var i = 0;
     // Setting
     while (lines[i].trim() != 'Setting:') {

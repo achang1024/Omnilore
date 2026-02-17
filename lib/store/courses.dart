@@ -84,7 +84,7 @@ class Courses {
   Future<int> loadCoursesFromBytes(List<int> bytes) async {
     _courses.clear();
     var content = utf8.decode(bytes);
-    var lines = content.split('\n');
+    var lines = const LineSplitter().convert(content);
     var numLines = 0;
     for (var line in lines) {
       if (line.isEmpty) continue;

@@ -146,7 +146,7 @@ class People {
   Future<int> loadPeopleFromBytes(List<int> bytes) async {
     people.clear();
     var content = utf8.decode(bytes);
-    var lines = content.split('\n');
+    var lines = const LineSplitter().convert(content);
     var numLines = 0;
     for (var line in lines) {
       if (line.isEmpty) continue;
