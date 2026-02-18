@@ -1,9 +1,8 @@
 import 'dart:collection';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:omnilore_scheduler/model/course.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
+import 'package:omnilore_scheduler/platform/file_io.dart';
 
 class Courses {
   final HashMap<String, Course> _courses = HashMap<String, Course>();
@@ -48,9 +47,7 @@ class Courses {
   /// ```
   Future<int> loadCourses(String inputFile) async {
     _courses.clear();
-    var file = File(inputFile);
-    var lines =
-        file.openRead().transform(utf8.decoder).transform(const LineSplitter());
+    var lines = openReadUtf8Lines(inputFile);
     var numLines = 0;
     await for (var line in lines) {
       if (line.isEmpty) continue;

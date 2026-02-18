@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:omnilore_scheduler/compute/course_control.dart';
 import 'package:omnilore_scheduler/compute/overview_data.dart';
 import 'package:omnilore_scheduler/compute/schedule_control.dart';
@@ -10,6 +8,7 @@ import 'package:omnilore_scheduler/model/course.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
 import 'package:omnilore_scheduler/model/person.dart';
 import 'package:omnilore_scheduler/model/state_of_processing.dart';
+import 'package:omnilore_scheduler/platform/file_io.dart';
 import 'package:omnilore_scheduler/store/courses.dart';
 import 'package:omnilore_scheduler/store/people.dart';
 
@@ -162,7 +161,13 @@ class Scheduling {
 
   /// Output roster with CC information
   void outputRosterCC(String path) {
-    if (getStateOfProcessing() != StateOfProcessing.output) return;
+    var content = getRosterCCContent();
+    if (content == null) return;
+    writeTextFileSync(path, content);
+  }
+
+  String? getRosterCCContent() {
+    if (getStateOfProcessing() != StateOfProcessing.output) return null;
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
@@ -193,15 +198,22 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    return content;
   }
 
   /// Output roster with phone number
   void outputRosterPhone(String path) {
+    var content = getRosterPhoneContent();
+    if (content == null) return;
+    writeTextFileSync(path, content);
+  }
+
+  String? getRosterPhoneContent() {
     var state = getStateOfProcessing();
     if (state != StateOfProcessing.coordinator &&
-        state != StateOfProcessing.output) return;
+        state != StateOfProcessing.output) {
+      return null;
+    }
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
@@ -228,13 +240,18 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    return content;
   }
 
   /// Output mail merge file
   void outputMM(String path) {
-    if (getStateOfProcessing() != StateOfProcessing.output) return;
+    var content = getMailMergeContent();
+    if (content == null) return;
+    writeTextFileSync(path, content);
+  }
+
+  String? getMailMergeContent() {
+    if (getStateOfProcessing() != StateOfProcessing.output) return null;
     Map<String, List<String>> coursesGiven = {};
     var entriesSorted = _people.people.entries.toList(growable: false);
     entriesSorted.sort((a, b) =>
@@ -250,9 +267,7 @@ class Scheduling {
       }
     }
     var dropped = courseControl.getDropped();
-    var output = File(path);
-    // This truncates existing file
-    output.writeAsStringSync('');
+    var content = '';
 
     // Output one line for each person
     for (var person in peopleSorted) {
@@ -308,8 +323,9 @@ class Scheduling {
         }
         line[17 + i * 3] = courseData.reading;
       }
-      output.writeAsStringSync('${line.join('\t')}\n', mode: FileMode.append);
+      content += '${line.join('\t')}\n';
     }
+    return content;
   }
 
   /// Get timeslot description for time index
@@ -350,6 +366,10 @@ class Scheduling {
 
   /// Export intermediate state
   void exportState(String path) {
+    writeTextFileSync(path, getStateContent());
+  }
+
+  String getStateContent() {
     var content = '';
     // Global setting
     content += 'Setting:\n';
@@ -410,14 +430,12 @@ class Scheduling {
         content += '\n';
       }
     }
-    var output = File(path);
-    output.writeAsStringSync(content);
+    return content;
   }
 
   /// Load intermediate state
   void loadState(String path) {
-    var input = File(path);
-    List<String> lines = input.readAsLinesSync();
+    List<String> lines = readUtf8LinesSync(path);
     var i = 0;
     // Setting
     while (lines[i].trim() != 'Setting:') {

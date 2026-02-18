@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:desktop_window/desktop_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +38,10 @@ int colorNum = 0;
 void main() async {
   // Initialize widgets
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows)) {
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.windows)) {
     await DesktopWindow.setMinWindowSize(const Size(1400, 500));
   }
 
