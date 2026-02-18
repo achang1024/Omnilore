@@ -6,14 +6,14 @@ import 'package:omnilore_scheduler/widgets/table/overview_row.dart';
 import 'package:omnilore_scheduler/widgets/utils.dart';
 
 const List<Color> clusterColors = [
-  Colors.green,
-  Colors.purple,
-  Colors.yellow,
-  Colors.brown,
-  Colors.deepOrange,
-  Colors.amber,
-  Colors.pinkAccent,
-  Colors.blue
+  Color(0xFFB2DFDB), // light green
+  Color(0xFFE1BEE7), // light purple
+  Color(0xFFFFF9C4), // light yellow
+  Color(0xFFD7CCC8), // light brown
+  Color(0xFFFFE0B2), // light orange
+  Color(0xFFFFF59D), // light amber
+  Color(0xFFF8BBD9), // light pink
+  Color(0xFFBBDEFB)  // light blue
 ];
 
 class ClassNameDisplay extends StatefulWidget {
@@ -154,7 +154,8 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ElevatedButton(
-                onPressed: widget.currentRow == RowType.resultingClass
+                onPressed: widget.currentRow == RowType.resultingClass ||
+                        widget.isShowingSplitPreview
                     ? () {
                         setState(() {
                           for (int i = 0; i < _selected.length; i++) {
@@ -169,7 +170,8 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                     : null,
                 child: const Text('Dec Clust')),
             ElevatedButton(
-                onPressed: widget.currentRow == RowType.resultingClass
+                onPressed: widget.currentRow == RowType.resultingClass ||
+                        widget.isShowingSplitPreview
                     ? () {
                         setState(() {
                           Set<String> result = <String>{};
@@ -214,6 +216,9 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                       return ElevatedButton.styleFrom(
                           foregroundColor: Colors.white,
                           backgroundColor: Colors.red);
+                    } else if (widget.isShowingSplitPreview) {
+                      return ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white);
                     } else {
                       int clusterIndex = widget.schedule.splitControl
                           .getClusterIndex(widget.people[i]);
@@ -228,10 +233,12 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                     }
                   }()),
                   onPressed: widget.currentRow == RowType.resultingClass ||
-                          widget.currentRow == RowType.className
+                          widget.currentRow == RowType.className ||
+                          widget.isShowingSplitPreview
                       ? () {
                           setState(() {
-                            if (widget.currentRow == RowType.resultingClass) {
+                            if (widget.currentRow == RowType.resultingClass ||
+                                widget.isShowingSplitPreview) {
                               _selected[i] = !_selected[i];
                             } else {
                               clearSelection();
@@ -265,6 +272,56 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
 
   /// Build the split preview UI
   Widget _buildSplitPreview() {
+    List<Widget> wrapChildren = [];
+    if (widget.people.isNotEmpty && widget.currentSplitGroupSelected != null) {
+      for (String person in widget.people) {
+        wrapChildren.add(Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+                style: (() {
+                  int clusterIndex = widget.schedule.splitControl
+                      .getClusterIndex(person);
+                  if (clusterIndex == -1) {
+                    return ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white);
+                  } else {
+                    return ElevatedButton.styleFrom(
+                        backgroundColor: clusterColors[
+                            clusterIndex % clusterColors.length]);
+                  }
+                }()),
+                onPressed: () {
+                  setState(() {
+                    int idx = widget.people.indexOf(person);
+                    _selected[idx] = !_selected[idx];
+                  });
+                },
+                child: Text(person,
+                    style: TextStyle(color: Colors.black))),
+            if (widget.currentSplitGroupSelected! > 0)
+              IconButton(
+                  onPressed: () {
+                    widget.onMovePerson?.call(
+                        person,
+                        widget.currentSplitGroupSelected!,
+                        widget.currentSplitGroupSelected! - 1);
+                  },
+                  icon: const Icon(Icons.arrow_left)),
+            if (widget.currentSplitGroupSelected! <
+                widget.tempSplitResult.length - 1)
+              IconButton(
+                  onPressed: () {
+                    widget.onMovePerson?.call(
+                        person,
+                        widget.currentSplitGroupSelected!,
+                        widget.currentSplitGroupSelected! + 1);
+                  },
+                  icon: const Icon(Icons.arrow_right)),
+          ],
+        ));
+      }
+    }
     return Container(
       color: themeColors['MoreBlue'],
       child: Column(children: [
@@ -294,18 +351,28 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
               bool isSelected =
                   widget.currentSplitGroupSelected == index;
               int groupSize = widget.tempSplitResult[index]?.length ?? 0;
+              Set<int> clusters = {};
+              for (String person in widget.tempSplitResult[index]!) {
+                int ci = widget.schedule.splitControl.getClusterIndex(person);
+                if (ci >= 0) clusters.add(ci);
+              }
+              Color bgColor;
+              if (isSelected) {
+                bgColor = Colors.blue[700]!;
+              } else if (clusters.length == 1) {
+                bgColor = clusterColors[clusters.first % clusterColors.length];
+              } else {
+                bgColor = Colors.white;
+              }
               return ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: isSelected
-                          ? Colors.blue[700]
-                          : Colors.blue[100]),
+                  style: ElevatedButton.styleFrom(backgroundColor: bgColor),
                   onPressed: () {
                     widget.onSelectSplitGroup?.call(index);
                   },
                   child: Text(
                     'Group ${index + 1}\n($groupSize)',
                     style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black),
+                        color: bgColor == Colors.blue[700] ? Colors.white : Colors.black),
                   ));
             }),
             if (widget.currentSplitGroupSelected != null &&
@@ -335,49 +402,12 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                if (widget.people.isNotEmpty && widget.currentSplitGroupSelected != null)
-                  Wrap(
-                    direction: Axis.horizontal,
-                    children: [
-                      for (String person in widget.people)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: clusterColors[
-                                        widget.currentSplitGroupSelected! %
-                                            clusterColors.length]),
-                                onPressed: null,
-                                child: Text(person,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold))),
-                            if (widget.currentSplitGroupSelected! > 0)
-                              IconButton(
-                                  onPressed: () {
-                                    widget.onMovePerson?.call(
-                                        person,
-                                        widget.currentSplitGroupSelected!,
-                                        widget.currentSplitGroupSelected! - 1);
-                                  },
-                                  icon: const Icon(Icons.arrow_left)),
-                            if (widget.currentSplitGroupSelected! <
-                                widget.tempSplitResult.length - 1)
-                              IconButton(
-                                  onPressed: () {
-                                    widget.onMovePerson?.call(
-                                        person,
-                                        widget.currentSplitGroupSelected!,
-                                        widget.currentSplitGroupSelected! + 1);
-                                  },
-                                  icon: const Icon(Icons.arrow_right)),
-                          ],
-                        )
-                    ],
-                  )
-                else
-                  const Text('No students in this group'),
+                wrapChildren.isNotEmpty
+                  ? Wrap(
+                      direction: Axis.horizontal,
+                      children: wrapChildren,
+                    )
+                  : const Text('No students in this group'),
               ],
             ),
           ),

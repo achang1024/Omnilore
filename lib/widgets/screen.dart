@@ -140,6 +140,16 @@ class _ScreenState extends State<Screen> {
   void _implementSplit() {
     if (splitCourseInProgress == null) return;
 
+    int minSize = schedule.courseControl.getMinClassSize(splitCourseInProgress!);
+    int maxSize = schedule.courseControl.getMaxClassSize(splitCourseInProgress!);
+    for (var group in tempSplitResult.values) {
+      if (group.length < minSize || group.length > maxSize) {
+        Utils.showPopUp(context, 'Invalid split',
+            'All split groups must have between $minSize and $maxSize people.');
+        return;
+      }
+    }
+
     try {
       // Apply the modified split
       schedule.splitControl.applySplit(splitCourseInProgress!, tempSplitResult);
