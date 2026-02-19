@@ -35,9 +35,9 @@ class MainTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Table(
-      border: TableBorder.symmetric(
-          inside: const BorderSide(width: 1, color: Colors.black),
-          outside: const BorderSide(width: 1)),
+      border: const TableBorder.symmetric(
+          inside: BorderSide(width: 1, color: Colors.black),
+          outside: BorderSide(width: 1)),
       columnWidths: const {0: IntrinsicColumnWidth()},
       children: [
         ClassNameRow(courses, onCellPressed),

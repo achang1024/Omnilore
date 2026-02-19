@@ -39,7 +39,7 @@ dependencies:
   english_words: ^4.0.0
   multilevel_drawer: ^2.0.0
   flutter_menu: ^0.4.1
-  file_picker: ^6.1.1
+  file_picker: ^10.3.10
   tuple: ^2.0.0
 
 dev_dependencies:

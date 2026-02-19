@@ -201,7 +201,9 @@ class Scheduling {
   void outputRosterPhone(String path) {
     var state = getStateOfProcessing();
     if (state != StateOfProcessing.coordinator &&
-        state != StateOfProcessing.output) return;
+        state != StateOfProcessing.output) {
+      return;
+    }
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
