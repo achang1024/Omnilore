@@ -298,7 +298,7 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                   });
                 },
                 child: Text(person,
-                    style: TextStyle(color: Colors.black))),
+                    style: const TextStyle(color: Colors.black))),
             if (widget.currentSplitGroupSelected! > 0)
               IconButton(
                   onPressed: () {
