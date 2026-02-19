@@ -151,6 +151,57 @@ class SplitControl {
     resetState();
   }
 
+  /// Apply a custom split with the given modified result
+  /// Used when user has modified the split result in the preview
+  void applySplit(String course, Map<int, Set<String>> customResult) {
+    if (customResult.isEmpty) return;
+
+    // Update people's choices
+    for (var entry in customResult.entries) {
+      var splitIndex = entry.key;
+      for (var person in entry.value) {
+        var classIndex = _people.people[person]!.firstChoices
+            .indexWhere((element) => element == course);
+        if (classIndex != -1) {
+          _people.people[person]!.firstChoices.replaceRange(
+              classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
+        } else {
+          classIndex = _people.people[person]!.backups
+              .indexWhere((element) => element == course);
+          if (classIndex != -1) {
+            _people.people[person]!.backups.replaceRange(
+                classIndex, classIndex + 1, ['$course${splitIndex + 1}']);
+          }
+        }
+      }
+    }
+
+    // Update backups for people not in the resulting class
+    // Assign each backup person to the smallest split group
+    for (var person in _people.people.values) {
+      var backupIndex = person.backups.indexWhere((e) => e == course);
+      if (backupIndex != -1) {
+        // Find the smallest group to assign this backup to
+        var minSize = customResult.values.first.length;
+        var minKey = customResult.keys.first;
+        for (var entry in customResult.entries) {
+          if (entry.value.length < minSize) {
+            minSize = entry.value.length;
+            minKey = entry.key;
+          }
+        }
+        person.backups.replaceRange(
+            backupIndex, backupIndex + 1, ['$course${minKey + 1}']);
+      }
+    }
+
+    // Update course data
+    _courses.splitCourse(course, customResult.length);
+
+    _scheduling.compute(Change.course);
+    resetState();
+  }
+
   /// Compute the result of splitting without implementing the split
   List<Set<String>> getSplitResult(String course) {
     var clusterData = List<Set<String>>.from(_clusters);

@@ -1,11 +1,16 @@
 import 'dart:collection';
+import 'dart:convert';
 
+import 'package:omnilore_scheduler/io/text_file_store.dart';
+import 'package:omnilore_scheduler/io/text_file_store_factory.dart';
 import 'package:omnilore_scheduler/model/course.dart';
 import 'package:omnilore_scheduler/model/exceptions.dart';
-import 'package:omnilore_scheduler/platform/file_io.dart';
 
 class Courses {
+  Courses({TextFileStore? fileStore}) : _fileStore = fileStore ?? createTextFileStore();
+
   final HashMap<String, Course> _courses = HashMap<String, Course>();
+  final TextFileStore _fileStore;
 
   /// Get an iterable list of course codes
   ///
@@ -47,9 +52,43 @@ class Courses {
   /// ```
   Future<int> loadCourses(String inputFile) async {
     _courses.clear();
-    var lines = openReadUtf8Lines(inputFile);
+    var lines = _fileStore.readLines(inputFile);
     var numLines = 0;
     await for (var line in lines) {
+      if (line.isEmpty) continue;
+      var tokens = line.split('\t').map((e) => e.trim()).toList();
+      if (tokens.length != 3) {
+        _courses.clear();
+        throw MalformedInputException(
+            message:
+                'Line ${numLines + 1}: expected 3 columns but got ${tokens.length}');
+      }
+      var code = tokens[0];
+      var name = tokens[1];
+      var reading = tokens[2];
+      if (_courses.containsKey(code)) {
+        _courses.clear();
+        throw DuplicateCourseCodeException(duplicatedCode: code);
+      }
+      _courses[code] = Course(code: code, name: name, reading: reading);
+      numLines++;
+    }
+    return numLines;
+  }
+
+  /// Loads courses from bytes (used for web file picker)
+  ///
+  /// Throws a [DuplicateCourseCodeException] when the input file specifies a
+  /// course code more than once.
+  /// Throws a [MalformedInputException] when the input is malformed.
+  ///
+  /// Asynchronously returns the number of courses successfully read.
+  Future<int> loadCoursesFromBytes(List<int> bytes) async {
+    _courses.clear();
+    var content = utf8.decode(bytes);
+    var lines = const LineSplitter().convert(content);
+    var numLines = 0;
+    for (var line in lines) {
       if (line.isEmpty) continue;
       var tokens = line.split('\t').map((e) => e.trim()).toList();
       if (tokens.length != 3) {

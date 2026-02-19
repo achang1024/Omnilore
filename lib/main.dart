@@ -1,6 +1,5 @@
-import 'package:desktop_window/desktop_window.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:omnilore_scheduler/window_sizing/window_sizing.dart';
 import 'package:omnilore_scheduler/widgets/screen.dart';
 import 'package:omnilore_scheduler/theme.dart';
 
@@ -38,12 +37,7 @@ int colorNum = 0;
 void main() async {
   // Initialize widgets
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.macOS ||
-          defaultTargetPlatform == TargetPlatform.linux ||
-          defaultTargetPlatform == TargetPlatform.windows)) {
-    await DesktopWindow.setMinWindowSize(const Size(1400, 500));
-  }
+  await setAppMinWindowSize();
 
   // Start app
   runApp(const MyApp());
@@ -62,17 +56,17 @@ class MyApp extends StatelessWidget {
         primarySwatch: primaryBlack,
         textButtonTheme: TextButtonThemeData(
           style: ButtonStyle(
-            overlayColor: MaterialStateProperty.all(
-                Colors.blueGrey[600]), // Set Button hover color
+            overlayColor: WidgetStateProperty.all(
+                Colors.blueGrey.shade600), // Set Button hover color
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: MaterialStateProperty.all(Colors.black),
+            foregroundColor: WidgetStateProperty.all(Colors.black),
             backgroundColor:
-                MaterialStateProperty.all(themeColors['WhiteBlue']),
-            overlayColor: MaterialStateProperty.all(
-                Colors.blueGrey[600]), // Set Button hover color
+                WidgetStateProperty.all(themeColors['WhiteBlue']),
+            overlayColor: WidgetStateProperty.all(
+                Colors.blueGrey.shade600), // Set Button hover color
           ),
         ),
       ),

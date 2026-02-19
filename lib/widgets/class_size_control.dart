@@ -29,12 +29,8 @@ class ClassSizeControlState extends State<ClassSizeControl> {
   final maxController = TextEditingController();
   SplitMode mode = SplitMode.split;
   String course = 'ALL';
-  late String minValue = widget.schedule.courseControl.isMinSizeMixed()
-      ? 'Mix'
-      : widget.schedule.courseControl.getGlobalMinClassSize().toString();
-  late String maxValue = widget.schedule.courseControl.isMaxSizeMixed()
-      ? 'Mix'
-      : widget.schedule.courseControl.getGlobalMaxClassSize().toString();
+  late String minValue = '8';
+  late String maxValue = '16';
 
   @override
   Widget build(BuildContext context) {
@@ -166,21 +162,15 @@ class ClassSizeControlState extends State<ClassSizeControl> {
         });
   }
 
-  /// This class is a private computation function that sets the min and max class
-  /// size for each class
   void _set() {
     setState(() {
-      minValue = minController.text;
-      maxValue = maxController.text;
-      if (minValue.isNotEmpty &&
-          maxValue.isNotEmpty &&
-          widget.schedule.getStateOfProcessing() !=
+      if (widget.schedule.getStateOfProcessing() !=
               StateOfProcessing.needCourses) {
-        int min;
-        int max;
+        int min = 8;
+        int max = 16;
         try {
-          min = int.parse(minValue);
-          max = int.parse(maxValue);
+          if (minController.text.isNotEmpty) min = int.parse(minController.text);
+          if (maxController.text.isNotEmpty) max = int.parse(maxController.text);
         } catch (e) {
           Utils.showPopUp(context, 'Min/Max invalid input', e.toString());
           return;
@@ -192,8 +182,8 @@ class ClassSizeControlState extends State<ClassSizeControl> {
               .setMinMaxClassSizeForClass(course, min, max);
           widget.schedule.courseControl.setSplitMode(course, mode);
         }
-        minController.clear();
-        maxController.clear();
+        minController.text = min.toString();
+        maxController.text = max.toString();
         widget.onChange(Change.schedule);
       } else {
         String error;
