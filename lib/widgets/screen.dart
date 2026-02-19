@@ -17,6 +17,11 @@ import 'package:omnilore_scheduler/widgets/table/overview_row.dart';
 import 'package:omnilore_scheduler/widgets/table/schedule_row.dart';
 import 'package:omnilore_scheduler/widgets/utils.dart';
 
+import 'package:omnilore_scheduler/io/web_download_factory.dart' as web_dl;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+// For web download:
+
 const stateDescriptions = <String>[
   'Need Courses',
   'Need People',
@@ -337,19 +342,21 @@ class _ScreenState extends State<Screen> {
             MenuListItem(
               title: 'Save',
               onPressed: () async {
-                String? path = await FilePicker.platform.saveFile(
-                    type: FileType.custom, allowedExtensions: ['txt']);
-
-                if (path != null) {
-                  if (path != '') {
-                    try {
+                try {
+                  if (kIsWeb) {
+                    final content = schedule.exportStateToString();
+                    web_dl.triggerDownload(content, 'scheduling_state.txt');
+                  } else {
+                    String? path = await FilePicker.platform.saveFile(
+                        type: FileType.custom, allowedExtensions: ['txt']);
+                    if (path != null && path != '') {
                       schedule.exportState(path);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(
-                            context, 'Error saving state', Utils.getErrorMessage(e));
-                      }
                     }
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Utils.showPopUp(
+                        context, 'Error saving state', Utils.getErrorMessage(e));
                   }
                 }
               },
@@ -378,6 +385,7 @@ class _ScreenState extends State<Screen> {
                       var dropped = schedule.courseControl.getDropped();
                       droppedList = List<bool>.generate(
                           numCourses!, (i) => dropped.contains(courses[i]));
+                      compute(Change.drop);
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(

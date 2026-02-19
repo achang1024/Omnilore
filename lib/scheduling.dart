@@ -523,7 +523,7 @@ class Scheduling {
   }
 
   /// Export intermediate state
-  void exportState(String path) {
+  String exportStateToString() {
     var content = '';
     // Global setting
     content += 'Setting:\n';
@@ -584,7 +584,11 @@ class Scheduling {
         content += '\n';
       }
     }
-    _fileStore.writeStringSync(path, content);
+    return content;
+  }
+
+  void exportState(String path) {
+    _fileStore.writeStringSync(path, exportStateToString());
   }
 
   /// Load intermediate state
