@@ -6,12 +6,14 @@ import 'package:omnilore_scheduler/theme.dart';
 class NamesDisplayMode extends StatelessWidget {
   const NamesDisplayMode(
       {Key? key,
+      required this.onShowSplits,
       required this.onImplSplit,
       required this.onShowCoords,
       required this.onSetC,
       required this.onSetCC})
       : super(key: key);
 
+  final void Function()? onShowSplits;
   final void Function()? onImplSplit;
   final void Function()? onShowCoords;
   final void Function()? onSetC;
@@ -28,7 +30,8 @@ class NamesDisplayMode extends StatelessWidget {
             child: const Text('NAMES DISPLAY MODE',
                 style: TextStyle(fontStyle: FontStyle.normal, fontSize: 25)),
           ),
-          const ElevatedButton(onPressed: null, child: Text('Show Splits')),
+          ElevatedButton(
+              onPressed: onShowSplits, child: const Text('Show Splits')),
           ElevatedButton(
               onPressed: onImplSplit, child: const Text('Imp. Splits')),
           ElevatedButton(

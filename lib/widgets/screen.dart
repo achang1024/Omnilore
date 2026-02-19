@@ -50,6 +50,12 @@ class _ScreenState extends State<Screen> {
   int mainSelected = 0;
   int coSelected = 0;
 
+  // Split preview state
+  bool isShowingSplitPreview = false;
+  String? splitCourseInProgress;
+  Map<int, Set<String>> tempSplitResult = {}; // indexed by split number
+  int? currentSplitGroupSelected; // which split group to display
+
   Color masterBackgroundColor = themeColors['WhiteBlue'];
   Color detailBackgroundColor = Colors.blueGrey[300] as Color;
 
@@ -82,6 +88,106 @@ class _ScreenState extends State<Screen> {
       if (change == Change.course || change == Change.schedule) {
         _updateScheduleData();
       }
+    });
+  }
+
+  /// Show split preview for the current class
+  void _showSplitPreview() {
+    if (currentClass == null || currentRow != RowType.resultingClass) return;
+    
+    var splitResult = schedule.splitControl.getSplitResult(currentClass!);
+    if (splitResult.isEmpty) return;
+    
+    setState(() {
+      tempSplitResult = {};
+      for (int i = 0; i < splitResult.length; i++) {
+        tempSplitResult[i] = Set.from(splitResult[i]);
+      }
+      isShowingSplitPreview = true;
+      splitCourseInProgress = currentClass;
+      currentRow = RowType.splitPreview;
+      currentSplitGroupSelected = 0;
+      _updateSplitPreviewRoster();
+    });
+  }
+
+  /// Update curClassRoster to show the selected split group during preview
+  void _updateSplitPreviewRoster() {
+    if (currentSplitGroupSelected != null && 
+        tempSplitResult.containsKey(currentSplitGroupSelected)) {
+      curClassRoster = tempSplitResult[currentSplitGroupSelected]!.toList();
+      curClassRoster.sort();
+    } else {
+      curClassRoster = [];
+    }
+  }
+
+  /// Move a person between split groups
+  void _movePersonBetweenSplits(String person, int fromGroup, int toGroup) {
+    setState(() {
+      if (tempSplitResult.containsKey(fromGroup)) {
+        tempSplitResult[fromGroup]!.remove(person);
+      }
+      if (!tempSplitResult.containsKey(toGroup)) {
+        tempSplitResult[toGroup] = <String>{};
+      }
+      tempSplitResult[toGroup]!.add(person);
+      _updateSplitPreviewRoster();
+    });
+  }
+
+  /// Implement the split with the current tempSplitResult
+  void _implementSplit() {
+    if (splitCourseInProgress == null) return;
+
+    int minSize = schedule.courseControl.getMinClassSize(splitCourseInProgress!);
+    int maxSize = schedule.courseControl.getMaxClassSize(splitCourseInProgress!);
+    for (var group in tempSplitResult.values) {
+      if (group.length < minSize || group.length > maxSize) {
+        Utils.showPopUp(context, 'Invalid split',
+            'All split groups must have between $minSize and $maxSize people.');
+        return;
+      }
+    }
+
+    try {
+      // Apply the modified split
+      schedule.splitControl.applySplit(splitCourseInProgress!, tempSplitResult);
+
+      var newCourses = schedule.getCourseCodes();
+      droppedList.insertAll(
+          courses.indexOf(splitCourseInProgress!),
+          List<bool>.filled(
+              newCourses.length - courses.length,
+              false));
+
+      // Reset split preview state
+      isShowingSplitPreview = false;
+      tempSplitResult.clear();
+      splitCourseInProgress = null;
+      currentSplitGroupSelected = null;
+      currentClass = null;
+      currentRow = RowType.none;
+      curClassRoster = [];
+
+      compute(Change.course);
+    } catch (e) {
+      if (mounted) {
+        Utils.showPopUp(context, 'Error implementing split', e.toString());
+      }
+    }
+  }
+
+  /// Cancel split preview and go back
+  void _cancelSplitPreview() {
+    setState(() {
+      isShowingSplitPreview = false;
+      tempSplitResult.clear();
+      splitCourseInProgress = null;
+      currentSplitGroupSelected = null;
+      currentClass = null;
+      currentRow = RowType.none;
+      curClassRoster = [];
     });
   }
 
@@ -164,18 +270,28 @@ class _ScreenState extends State<Screen> {
                     type: FileType.custom, allowedExtensions: ['txt']);
 
                 if (result != null) {
-                  String path = result.files.single.path ?? '';
-                  if (path != '') {
-                    try {
-                      numCourses = await schedule.loadCourses(path);
+                  try {
+                    late int? newNumCourses;
+                    // On web, use bytes; on native platforms, use path
+                    if (result.files.single.bytes != null) {
+                      newNumCourses =
+                          await schedule.loadCoursesFromBytes(result.files.single.bytes!);
+                    } else {
+                      String path = result.files.single.path ?? '';
+                      if (path != '') {
+                        newNumCourses = await schedule.loadCourses(path);
+                      }
+                    }
+                    if (newNumCourses != null) {
+                      numCourses = newNumCourses;
                       droppedList =
                           List<bool>.filled(numCourses!, false, growable: true);
                       compute(Change.course);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(
-                            context, 'Error loading courses', e.toString());
-                      }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      Utils.showPopUp(
+                          context, 'Error loading courses', Utils.getErrorMessage(e));
                     }
                   }
                 }
@@ -190,15 +306,25 @@ class _ScreenState extends State<Screen> {
                     type: FileType.custom, allowedExtensions: ['txt']);
 
                 if (result != null) {
-                  String path = result.files.single.path ?? '';
-                  if (path != '') {
-                    try {
-                      numPeople = await schedule.loadPeople(path);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(
-                            context, 'Error loading people', e.toString());
+                  try {
+                    int? newNumPeople;
+                    // On web, use bytes; on native platforms, use path
+                    if (result.files.single.bytes != null) {
+                      newNumPeople =
+                          await schedule.loadPeopleFromBytes(result.files.single.bytes!);
+                    } else {
+                      String path = result.files.single.path ?? '';
+                      if (path != '') {
+                        newNumPeople = await schedule.loadPeople(path);
                       }
+                    }
+                    if (newNumPeople != null) {
+                      numPeople = newNumPeople;
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      Utils.showPopUp(
+                          context, 'Error loading people', Utils.getErrorMessage(e));
                     }
                   }
                 } else {
@@ -221,7 +347,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(
-                            context, 'Error saving state', e.toString());
+                            context, 'Error saving state', Utils.getErrorMessage(e));
                       }
                     }
                   }
@@ -236,23 +362,29 @@ class _ScreenState extends State<Screen> {
                     type: FileType.custom, allowedExtensions: ['txt']);
 
                 if (result != null) {
-                  String path = result.files.single.path ?? '';
-                  if (path != '') {
-                    setState(() {
-                      try {
-                        schedule.loadState(path);
-                        courses = schedule.getCourseCodes().toList();
-                        numCourses = courses.length;
-                        var dropped = schedule.courseControl.getDropped();
-                        droppedList = List<bool>.generate(
-                            numCourses!, (i) => dropped.contains(courses[i]));
-                      } catch (e) {
-                        Utils.showPopUp(
-                            context, 'Error loading state', e.toString());
+                  setState(() {
+                    try {
+                      // On web, use bytes; on native platforms, use path
+                      if (result.files.single.bytes != null) {
+                        schedule.loadStateFromBytes(result.files.single.bytes!);
+                      } else {
+                        String path = result.files.single.path ?? '';
+                        if (path != '') {
+                          schedule.loadState(path);
+                        }
                       }
-                    });
-                    compute(Change.course);
-                  }
+                      courses = schedule.getCourseCodes().toList();
+                      numCourses = courses.length;
+                      var dropped = schedule.courseControl.getDropped();
+                      droppedList = List<bool>.generate(
+                          numCourses!, (i) => dropped.contains(courses[i]));
+                    } catch (e) {
+                      if (context.mounted) {
+                        Utils.showPopUp(
+                            context, 'Error loading state', Utils.getErrorMessage(e));
+                      }
+                    }
+                  });
                 }
               },
             ),
@@ -269,7 +401,7 @@ class _ScreenState extends State<Screen> {
                       } catch (e) {
                         if (context.mounted) {
                           Utils.showPopUp(context,
-                              'Error exporting early roster', e.toString());
+                              'Error exporting early roster', Utils.getErrorMessage(e));
                         }
                       }
                     }
@@ -288,7 +420,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(context,
-                            'Error exporting roster with CC', e.toString());
+                            'Error exporting roster with CC', Utils.getErrorMessage(e));
                       }
                     }
                   }
@@ -306,7 +438,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(
-                            context, 'Error exporting MailMerge', e.toString());
+                            context, 'Error exporting MailMerge', Utils.getErrorMessage(e));
                       }
                     }
                   }
@@ -506,7 +638,18 @@ class _ScreenState extends State<Screen> {
                       currentClass: currentClass,
                       currentRow: currentRow,
                       people: curClassRoster,
-                      schedule: schedule),
+                      schedule: schedule,
+                      isShowingSplitPreview: isShowingSplitPreview,
+                      tempSplitResult: tempSplitResult,
+                      currentSplitGroupSelected: currentSplitGroupSelected,
+                      onMovePerson: _movePersonBetweenSplits,
+                      onSelectSplitGroup: (groupNum) {
+                        setState(() {
+                          currentSplitGroupSelected = groupNum;
+                          _updateSplitPreviewRoster();
+                        });
+                      },
+                      onCancelSplitPreview: _cancelSplitPreview),
                 )
               ],
             ),
@@ -521,24 +664,32 @@ class _ScreenState extends State<Screen> {
                     schedule: schedule, courses: courses, onChange: compute),
                 Expanded(
                   child: NamesDisplayMode(
-                    onImplSplit: currentRow == RowType.resultingClass &&
+                    onShowSplits: currentRow == RowType.resultingClass &&
                             currentClass != null
-                        ? () {
-                            setState(() {
-                              schedule.splitControl.split(currentClass!);
-                              var newCourses = schedule.getCourseCodes();
-                              droppedList.insertAll(
-                                  courses.indexOf(currentClass!),
-                                  List<bool>.filled(
-                                      newCourses.length - courses.length,
-                                      false));
-                              currentClass = null;
-                              currentRow = RowType.none;
-                              curClassRoster = [];
-                            });
-                            compute(Change.course);
-                          }
+                        ? _showSplitPreview
                         : null,
+                    onImplSplit: (isShowingSplitPreview &&
+                            currentRow == RowType.splitPreview &&
+                            splitCourseInProgress != null)
+                        ? _implementSplit
+                        : (currentRow == RowType.resultingClass &&
+                                currentClass != null
+                            ? () {
+                                setState(() {
+                                  schedule.splitControl.split(currentClass!);
+                                  var newCourses = schedule.getCourseCodes();
+                                  droppedList.insertAll(
+                                      courses.indexOf(currentClass!),
+                                      List<bool>.filled(
+                                          newCourses.length - courses.length,
+                                          false));
+                                  currentClass = null;
+                                  currentRow = RowType.none;
+                                  curClassRoster = [];
+                                });
+                                compute(Change.course);
+                              }
+                            : null),
                     onShowCoords: currentRow == RowType.className &&
                             (schedule.getStateOfProcessing() ==
                                     StateOfProcessing.coordinator ||

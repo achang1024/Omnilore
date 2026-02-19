@@ -6,14 +6,14 @@ import 'package:omnilore_scheduler/widgets/table/overview_row.dart';
 import 'package:omnilore_scheduler/widgets/utils.dart';
 
 const List<Color> clusterColors = [
-  Colors.green,
-  Colors.purple,
-  Colors.yellow,
-  Colors.brown,
-  Colors.deepOrange,
-  Colors.amber,
-  Colors.pinkAccent,
-  Colors.blue
+  Color(0xFFB2DFDB), // light green
+  Color(0xFFE1BEE7), // light purple
+  Color(0xFFFFF9C4), // light yellow
+  Color(0xFFD7CCC8), // light brown
+  Color(0xFFFFE0B2), // light orange
+  Color(0xFFFFF59D), // light amber
+  Color(0xFFF8BBD9), // light pink
+  Color(0xFFBBDEFB)  // light blue
 ];
 
 class ClassNameDisplay extends StatefulWidget {
@@ -22,13 +22,25 @@ class ClassNameDisplay extends StatefulWidget {
       required this.currentRow,
       required this.currentClass,
       required this.schedule,
-      required this.people})
+      required this.people,
+      this.isShowingSplitPreview = false,
+      this.tempSplitResult = const {},
+      this.currentSplitGroupSelected,
+      this.onMovePerson,
+      this.onSelectSplitGroup,
+      this.onCancelSplitPreview})
       : super(key: key);
 
   final RowType currentRow;
   final String? currentClass;
   final Scheduling schedule;
   final List<String> people;
+  final bool isShowingSplitPreview;
+  final Map<int, Set<String>> tempSplitResult;
+  final int? currentSplitGroupSelected;
+  final void Function(String person, int fromGroup, int toGroup)? onMovePerson;
+  final void Function(int groupNum)? onSelectSplitGroup;
+  final void Function()? onCancelSplitPreview;
 
   @override
   State<StatefulWidget> createState() => ClassNameDisplayState();
@@ -120,6 +132,11 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
 
   @override
   Widget build(BuildContext context) {
+    // Show split preview if in split preview mode
+    if (widget.isShowingSplitPreview && widget.tempSplitResult.isNotEmpty) {
+      return _buildSplitPreview();
+    }
+    
     return Container(
       color: themeColors['MoreBlue'],
       child: Column(children: [
@@ -137,7 +154,8 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ElevatedButton(
-                onPressed: widget.currentRow == RowType.resultingClass
+                onPressed: widget.currentRow == RowType.resultingClass ||
+                        widget.isShowingSplitPreview
                     ? () {
                         setState(() {
                           for (int i = 0; i < _selected.length; i++) {
@@ -152,7 +170,8 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                     : null,
                 child: const Text('Dec Clust')),
             ElevatedButton(
-                onPressed: widget.currentRow == RowType.resultingClass
+                onPressed: widget.currentRow == RowType.resultingClass ||
+                        widget.isShowingSplitPreview
                     ? () {
                         setState(() {
                           Set<String> result = <String>{};
@@ -197,6 +216,9 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                       return ElevatedButton.styleFrom(
                           foregroundColor: Colors.white,
                           backgroundColor: Colors.red);
+                    } else if (widget.isShowingSplitPreview) {
+                      return ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white);
                     } else {
                       int clusterIndex = widget.schedule.splitControl
                           .getClusterIndex(widget.people[i]);
@@ -211,10 +233,12 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
                     }
                   }()),
                   onPressed: widget.currentRow == RowType.resultingClass ||
-                          widget.currentRow == RowType.className
+                          widget.currentRow == RowType.className ||
+                          widget.isShowingSplitPreview
                       ? () {
                           setState(() {
-                            if (widget.currentRow == RowType.resultingClass) {
+                            if (widget.currentRow == RowType.resultingClass ||
+                                widget.isShowingSplitPreview) {
                               _selected[i] = !_selected[i];
                             } else {
                               clearSelection();
@@ -246,10 +270,174 @@ class ClassNameDisplayState extends State<ClassNameDisplay> {
     );
   }
 
+  /// Build the split preview UI
+  Widget _buildSplitPreview() {
+    List<Widget> wrapChildren = [];
+    if (widget.people.isNotEmpty && widget.currentSplitGroupSelected != null) {
+      for (String person in widget.people) {
+        wrapChildren.add(Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton(
+                style: (() {
+                  int clusterIndex = widget.schedule.splitControl
+                      .getClusterIndex(person);
+                  if (clusterIndex == -1) {
+                    return ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white);
+                  } else {
+                    return ElevatedButton.styleFrom(
+                        backgroundColor: clusterColors[
+                            clusterIndex % clusterColors.length]);
+                  }
+                }()),
+                onPressed: () {
+                  setState(() {
+                    int idx = widget.people.indexOf(person);
+                    _selected[idx] = !_selected[idx];
+                  });
+                },
+                child: Text(person,
+                    style: const TextStyle(color: Colors.black))),
+            if (widget.currentSplitGroupSelected! > 0)
+              IconButton(
+                  onPressed: () {
+                    widget.onMovePerson?.call(
+                        person,
+                        widget.currentSplitGroupSelected!,
+                        widget.currentSplitGroupSelected! - 1);
+                  },
+                  icon: const Icon(Icons.arrow_left)),
+            if (widget.currentSplitGroupSelected! <
+                widget.tempSplitResult.length - 1)
+              IconButton(
+                  onPressed: () {
+                    widget.onMovePerson?.call(
+                        person,
+                        widget.currentSplitGroupSelected!,
+                        widget.currentSplitGroupSelected! + 1);
+                  },
+                  icon: const Icon(Icons.arrow_right)),
+          ],
+        ));
+      }
+    }
+    return Container(
+      color: themeColors['MoreBlue'],
+      child: Column(children: [
+        Container(
+          alignment: Alignment.center,
+          child: const Text('SPLIT PREVIEW',
+              style: TextStyle(fontStyle: FontStyle.normal, fontSize: 25)),
+        ),
+        Container(
+          alignment: Alignment.center,
+          child: const Text('Select a group and move students between groups',
+              style: TextStyle(fontSize: 15)),
+        ),
+        // Split group selector buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            if (widget.currentSplitGroupSelected != null &&
+                widget.currentSplitGroupSelected! > 0)
+              ElevatedButton(
+                  onPressed: () {
+                    widget.onSelectSplitGroup
+                        ?.call(widget.currentSplitGroupSelected! - 1);
+                  },
+                  child: const Text('← Prev Group')),
+            ...List.generate(widget.tempSplitResult.length, (index) {
+              bool isSelected =
+                  widget.currentSplitGroupSelected == index;
+              int groupSize = widget.tempSplitResult[index]?.length ?? 0;
+              Set<int> clusters = {};
+              for (String person in widget.tempSplitResult[index]!) {
+                int ci = widget.schedule.splitControl.getClusterIndex(person);
+                if (ci >= 0) clusters.add(ci);
+              }
+              Color bgColor;
+              if (isSelected) {
+                bgColor = Colors.blue[700]!;
+              } else if (clusters.length == 1) {
+                bgColor = clusterColors[clusters.first % clusterColors.length];
+              } else {
+                bgColor = Colors.white;
+              }
+              return ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: bgColor),
+                  onPressed: () {
+                    widget.onSelectSplitGroup?.call(index);
+                  },
+                  child: Text(
+                    'Group ${index + 1}\n($groupSize)',
+                    style: TextStyle(
+                        color: bgColor == Colors.blue[700] ? Colors.white : Colors.black),
+                  ));
+            }),
+            if (widget.currentSplitGroupSelected != null &&
+                widget.currentSplitGroupSelected! <
+                    widget.tempSplitResult.length - 1)
+              ElevatedButton(
+                  onPressed: () {
+                    widget.onSelectSplitGroup
+                        ?.call(widget.currentSplitGroupSelected! + 1);
+                  },
+                  child: const Text('Next Group →')),
+          ],
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            if (widget.currentSplitGroupSelected != null)
+              Text(
+                'Group ${widget.currentSplitGroupSelected! + 1} of ${widget.tempSplitResult.length}',
+                style:
+                    const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              )
+          ],
+        ),
+        // Display members of selected group with move buttons
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                wrapChildren.isNotEmpty
+                  ? Wrap(
+                      direction: Axis.horizontal,
+                      children: wrapChildren,
+                    )
+                  : const Text('No students in this group'),
+              ],
+            ),
+          ),
+        ),
+        // Cancel button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            ElevatedButton(
+                onPressed: widget.onCancelSplitPreview,
+                child: const Text('Cancel')),
+          ],
+        ),
+      ]),
+    );
+  }
+
   /// Get the description of a row
   String _getRowDescription(RowType row) {
     if (row == RowType.className) {
       return _getRowDescription(RowType.resultingClass);
+    }
+    if (row == RowType.splitPreview) {
+      return 'Split Preview';
+    }
+    if (row == RowType.unmetWants) {
+      return 'Unmet Wants';
+    }
+    if (row.index - 1 < 0 || row.index - 1 >= overviewRows.length) {
+      return '';
     }
     return overviewRows[row.index - 1];
   }
