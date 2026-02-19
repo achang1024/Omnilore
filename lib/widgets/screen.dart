@@ -291,7 +291,7 @@ class _ScreenState extends State<Screen> {
                   } catch (e) {
                     if (context.mounted) {
                       Utils.showPopUp(
-                          context, 'Error loading courses', e.toString());
+                          context, 'Error loading courses', Utils.getErrorMessage(e));
                     }
                   }
                 }
@@ -307,7 +307,7 @@ class _ScreenState extends State<Screen> {
 
                 if (result != null) {
                   try {
-                    late int? newNumPeople;
+                    int? newNumPeople;
                     // On web, use bytes; on native platforms, use path
                     if (result.files.single.bytes != null) {
                       newNumPeople =
@@ -324,7 +324,7 @@ class _ScreenState extends State<Screen> {
                   } catch (e) {
                     if (context.mounted) {
                       Utils.showPopUp(
-                          context, 'Error loading people', e.toString());
+                          context, 'Error loading people', Utils.getErrorMessage(e));
                     }
                   }
                 } else {
@@ -347,7 +347,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(
-                            context, 'Error saving state', e.toString());
+                            context, 'Error saving state', Utils.getErrorMessage(e));
                       }
                     }
                   }
@@ -379,8 +379,10 @@ class _ScreenState extends State<Screen> {
                       droppedList = List<bool>.generate(
                           numCourses!, (i) => dropped.contains(courses[i]));
                     } catch (e) {
-                      Utils.showPopUp(
-                          context, 'Error loading state', e.toString());
+                      if (context.mounted) {
+                        Utils.showPopUp(
+                            context, 'Error loading state', Utils.getErrorMessage(e));
+                      }
                     }
                   });
                 }
@@ -399,7 +401,7 @@ class _ScreenState extends State<Screen> {
                       } catch (e) {
                         if (context.mounted) {
                           Utils.showPopUp(context,
-                              'Error exporting early roster', e.toString());
+                              'Error exporting early roster', Utils.getErrorMessage(e));
                         }
                       }
                     }
@@ -418,7 +420,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(context,
-                            'Error exporting roster with CC', e.toString());
+                            'Error exporting roster with CC', Utils.getErrorMessage(e));
                       }
                     }
                   }
@@ -436,7 +438,7 @@ class _ScreenState extends State<Screen> {
                     } catch (e) {
                       if (context.mounted) {
                         Utils.showPopUp(
-                            context, 'Error exporting MailMerge', e.toString());
+                            context, 'Error exporting MailMerge', Utils.getErrorMessage(e));
                       }
                     }
                   }

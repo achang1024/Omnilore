@@ -1,7 +1,5 @@
-import 'dart:io';
-import 'package:desktop_window/desktop_window.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:omnilore_scheduler/window_sizing/window_sizing.dart';
 import 'package:omnilore_scheduler/widgets/screen.dart';
 import 'package:omnilore_scheduler/theme.dart';
 
@@ -39,9 +37,7 @@ int colorNum = 0;
 void main() async {
   // Initialize widgets
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows)) {
-    await DesktopWindow.setMinWindowSize(const Size(1400, 500));
-  }
+  await setAppMinWindowSize();
 
   // Start app
   runApp(const MyApp());
@@ -61,7 +57,7 @@ class MyApp extends StatelessWidget {
         textButtonTheme: TextButtonThemeData(
           style: ButtonStyle(
             overlayColor: WidgetStateProperty.all(
-                Colors.blueGrey[600]), // Set Button hover color
+                Colors.blueGrey.shade600), // Set Button hover color
           ),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -70,7 +66,7 @@ class MyApp extends StatelessWidget {
             backgroundColor:
                 WidgetStateProperty.all(themeColors['WhiteBlue']),
             overlayColor: WidgetStateProperty.all(
-                Colors.blueGrey[600]), // Set Button hover color
+                Colors.blueGrey.shade600), // Set Button hover color
           ),
         ),
       ),
