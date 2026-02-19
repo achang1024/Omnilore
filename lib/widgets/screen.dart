@@ -106,9 +106,8 @@ class _ScreenState extends State<Screen> {
         schedule.writeFile(path, content);
       }
     } catch (e) {
-      if (context.mounted) {
-        Utils.showPopUp(context, errorTitle, Utils.getErrorMessage(e));
-      }
+      if (!mounted) return;
+      Utils.showPopUp(context, errorTitle, Utils.getErrorMessage(e));
     }
   }
 

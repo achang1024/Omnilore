@@ -1,21 +1,24 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 void downloadTextFile(String fileName, String content) {
   final bytes = utf8.encode(content);
-  final blob = html.Blob(<dynamic>[bytes], 'text/plain;charset=utf-8');
-  final url = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
+  final jsArray = <JSUint8Array>[bytes.toJS].toJS;
+  final blob = web.Blob(jsArray, web.BlobPropertyBag(type: 'text/plain;charset=utf-8'));
+  final url = web.URL.createObjectURL(blob);
+  final anchor = web.document.createElement('a') as web.HTMLAnchorElement
+    ..href = url
     ..download = fileName
     ..style.display = 'none';
-  final body = html.document.body;
+  final body = web.document.body;
   if (body == null) {
-    html.Url.revokeObjectUrl(url);
+    web.URL.revokeObjectURL(url);
     throw StateError('Unable to access document body for file download.');
   }
 
-  body.children.add(anchor);
+  body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  html.Url.revokeObjectUrl(url);
+  web.URL.revokeObjectURL(url);
 }
