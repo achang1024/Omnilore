@@ -100,8 +100,10 @@ class _ScreenState extends State<Screen> {
         downloadTextFile(defaultFilename, content);
         return;
       }
-      String? path = await FilePicker.platform
-          .saveFile(type: FileType.custom, allowedExtensions: ['txt']);
+      String? path = await FilePicker.platform.saveFile(
+          type: FileType.custom,
+          allowedExtensions: ['txt'],
+          fileName: defaultFilename);
       if (path != null && path.isNotEmpty) {
         schedule.writeFile(path, content);
       }
