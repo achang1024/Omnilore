@@ -1,11 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_menu/flutter_menu.dart';
 import 'package:omnilore_scheduler/model/change.dart';
 import 'package:omnilore_scheduler/model/coordinators.dart';
 import 'package:omnilore_scheduler/model/state_of_processing.dart';
-import 'package:omnilore_scheduler/platform/download_text.dart';
 import 'package:omnilore_scheduler/scheduling.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:omnilore_scheduler/theme.dart';
@@ -96,26 +94,6 @@ class _ScreenState extends State<Screen> {
         _updateScheduleData();
       }
     });
-  }
-
-  Future<void> _saveOrDownloadText(
-      String content, String defaultFilename, String errorTitle) async {
-    try {
-      if (kIsWeb) {
-        downloadTextFile(defaultFilename, content);
-        return;
-      }
-      String? path = await FilePicker.platform.saveFile(
-          type: FileType.custom,
-          allowedExtensions: ['txt'],
-          fileName: defaultFilename);
-      if (path != null && path.isNotEmpty) {
-        schedule.writeFile(path, content);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Utils.showPopUp(context, errorTitle, Utils.getErrorMessage(e));
-    }
   }
 
   /// Show split preview for the current class
@@ -364,8 +342,23 @@ class _ScreenState extends State<Screen> {
             MenuListItem(
               title: 'Save',
               onPressed: () async {
-                await _saveOrDownloadText(
-                    schedule.getStateContent(), 'state.txt', 'Error saving state');
+                try {
+                  if (kIsWeb) {
+                    final content = schedule.exportStateToString();
+                    web_dl.triggerDownload(content, 'scheduling_state.txt');
+                  } else {
+                    String? path = await FilePicker.platform.saveFile(
+                        type: FileType.custom, allowedExtensions: ['txt']);
+                    if (path != null && path != '') {
+                      schedule.exportState(path);
+                    }
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Utils.showPopUp(
+                        context, 'Error saving state', Utils.getErrorMessage(e));
+                  }
+                }
               },
             ),
             MenuListItem(
@@ -406,28 +399,59 @@ class _ScreenState extends State<Screen> {
             MenuListItem(
                 title: 'Export Early Roster',
                 onPressed: () async {
-                  var content = schedule.getRosterPhoneContent();
-                  if (content != null) {
-                    await _saveOrDownloadText(content, 'early_roster.txt',
-                        'Error exporting early roster');
+                  String? path = await FilePicker.platform.saveFile(
+                      type: FileType.custom, allowedExtensions: ['txt']);
+
+                  if (path != null) {
+                    if (path != '') {
+                      try {
+                        schedule.outputRosterPhone(path);
+                      } catch (e) {
+                        if (context.mounted) {
+                          Utils.showPopUp(context,
+                              'Error exporting early roster', Utils.getErrorMessage(e));
+                        }
+                      }
+                    }
+                  } else {
+                    //file picker canceled
                   }
                 }),
             MenuListItem(
                 title: 'Export Final Roster',
                 onPressed: () async {
-                  var content = schedule.getRosterCCContent();
-                  if (content != null) {
-                    await _saveOrDownloadText(content, 'final_roster.txt',
-                        'Error exporting roster with CC');
+                  String? path = await FilePicker.platform.saveFile(
+                      type: FileType.custom, allowedExtensions: ['txt']);
+                  if (path != null && path.isNotEmpty) {
+                    try {
+                      schedule.outputRosterCC(path);
+                    } catch (e) {
+                      if (context.mounted) {
+                        Utils.showPopUp(context,
+                            'Error exporting roster with CC', Utils.getErrorMessage(e));
+                      }
+                    }
                   }
                 }),
             MenuListItem(
               title: 'Export MailMerge',
               onPressed: () async {
-                var content = schedule.getMailMergeContent();
-                if (content != null) {
-                  await _saveOrDownloadText(content, 'mailmerge.txt',
-                      'Error exporting MailMerge');
+                String? path = await FilePicker.platform.saveFile(
+                    type: FileType.custom, allowedExtensions: ['txt']);
+
+                if (path != null) {
+                  if (path != '') {
+                    try {
+                      schedule.outputMM(path);
+                    } catch (e) {
+                      if (context.mounted) {
+                        Utils.showPopUp(
+                            context, 'Error exporting MailMerge', Utils.getErrorMessage(e));
+                      }
+                    }
+                  }
+                } else {
+                  //file picker canceled
                 }
               },
             ),
