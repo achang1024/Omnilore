@@ -337,13 +337,7 @@ class Scheduling {
 
   /// Output roster with CC information
   void outputRosterCC(String path) {
-    var content = getRosterCCContent();
-    if (content == null) return;
-    _fileStore.writeStringSync(path, content);
-  }
-
-  String? getRosterCCContent() {
-    if (getStateOfProcessing() != StateOfProcessing.output) return null;
+    if (getStateOfProcessing() != StateOfProcessing.output) return;
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
@@ -374,21 +368,15 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    return content;
+    _fileStore.writeStringSync(path, content);
   }
 
   /// Output roster with phone number
   void outputRosterPhone(String path) {
-    var content = getRosterPhoneContent();
-    if (content == null) return;
-    _fileStore.writeStringSync(path, content);
-  }
-
-  String? getRosterPhoneContent() {
     var state = getStateOfProcessing();
     if (state != StateOfProcessing.coordinator &&
         state != StateOfProcessing.output) {
-      return null;
+      return;
     }
     var content = '';
     var goCourses = courseControl.getGo().toList(growable: false);
@@ -416,18 +404,12 @@ class Scheduling {
         content += '\n\n';
       }
     }
-    return content;
+    _fileStore.writeStringSync(path, content);
   }
 
   /// Output mail merge file
   void outputMM(String path) {
-    var content = getMailMergeContent();
-    if (content == null) return;
-    _fileStore.writeStringSync(path, content);
-  }
-
-  String? getMailMergeContent() {
-    if (getStateOfProcessing() != StateOfProcessing.output) return null;
+    if (getStateOfProcessing() != StateOfProcessing.output) return;
     Map<String, List<String>> coursesGiven = {};
     var entriesSorted = _people.people.entries.toList(growable: false);
     entriesSorted.sort((a, b) =>
@@ -443,7 +425,8 @@ class Scheduling {
       }
     }
     var dropped = courseControl.getDropped();
-    var content = '';
+    // This truncates existing file
+    _fileStore.writeStringSync(path, '');
 
     // Output one line for each person
     for (var person in peopleSorted) {
@@ -499,9 +482,8 @@ class Scheduling {
         }
         line[17 + i * 3] = courseData.reading;
       }
-      content += '${line.join('\t')}\n';
+      _fileStore.writeStringSync(path, '${line.join('\t')}\n', append: true);
     }
-    return content;
   }
 
   /// Get timeslot description for time index
@@ -541,11 +523,7 @@ class Scheduling {
   }
 
   /// Export intermediate state
-  void exportState(String path) {
-    _fileStore.writeStringSync(path, getStateContent());
-  }
-
-  String getStateContent() {
+  String exportStateToString() {
     var content = '';
     // Global setting
     content += 'Setting:\n';
@@ -609,9 +587,8 @@ class Scheduling {
     return content;
   }
 
-  /// Write content to a file at [path] via the platform file store.
-  void writeFile(String path, String content) {
-    _fileStore.writeStringSync(path, content);
+  void exportState(String path) {
+    _fileStore.writeStringSync(path, exportStateToString());
   }
 
   /// Load intermediate state
