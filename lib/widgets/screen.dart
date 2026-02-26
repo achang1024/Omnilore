@@ -399,59 +399,64 @@ class _ScreenState extends State<Screen> {
             MenuListItem(
                 title: 'Export Early Roster',
                 onPressed: () async {
-                  String? path = await FilePicker.platform.saveFile(
-                      type: FileType.custom, allowedExtensions: ['txt']);
-
-                  if (path != null) {
-                    if (path != '') {
-                      try {
+                  try {
+                    if (kIsWeb) {
+                      final content = schedule.outputRosterPhoneToString();
+                      web_dl.triggerDownload(content, 'early_roster.txt');
+                    } else {
+                      String? path = await FilePicker.platform.saveFile(
+                          type: FileType.custom, allowedExtensions: ['txt']);
+                      if (path != null && path != '') {
                         schedule.outputRosterPhone(path);
-                      } catch (e) {
-                        if (context.mounted) {
-                          Utils.showPopUp(context,
-                              'Error exporting early roster', Utils.getErrorMessage(e));
-                        }
                       }
                     }
-                  } else {
-                    //file picker canceled
+                  } catch (e) {
+                    if (context.mounted) {
+                      Utils.showPopUp(context, 'Error exporting early roster',
+                          Utils.getErrorMessage(e));
+                    }
                   }
                 }),
             MenuListItem(
                 title: 'Export Final Roster',
                 onPressed: () async {
-                  String? path = await FilePicker.platform.saveFile(
-                      type: FileType.custom, allowedExtensions: ['txt']);
-                  if (path != null && path.isNotEmpty) {
-                    try {
-                      schedule.outputRosterCC(path);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(context,
-                            'Error exporting roster with CC', Utils.getErrorMessage(e));
+                  try {
+                    if (kIsWeb) {
+                      final content = schedule.outputRosterCCToString();
+                      web_dl.triggerDownload(content, 'final_roster.txt');
+                    } else {
+                      String? path = await FilePicker.platform.saveFile(
+                          type: FileType.custom, allowedExtensions: ['txt']);
+                      if (path != null && path.isNotEmpty) {
+                        schedule.outputRosterCC(path);
                       }
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      Utils.showPopUp(context, 'Error exporting roster with CC',
+                          Utils.getErrorMessage(e));
                     }
                   }
                 }),
             MenuListItem(
               title: 'Export MailMerge',
               onPressed: () async {
-                String? path = await FilePicker.platform.saveFile(
-                    type: FileType.custom, allowedExtensions: ['txt']);
-
-                if (path != null) {
-                  if (path != '') {
-                    try {
+                try {
+                  if (kIsWeb) {
+                    final content = schedule.outputMMToString();
+                    web_dl.triggerDownload(content, 'mail_merge.txt');
+                  } else {
+                    String? path = await FilePicker.platform.saveFile(
+                        type: FileType.custom, allowedExtensions: ['txt']);
+                    if (path != null && path != '') {
                       schedule.outputMM(path);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(
-                            context, 'Error exporting MailMerge', Utils.getErrorMessage(e));
-                      }
                     }
                   }
-                } else {
-                  //file picker canceled
+                } catch (e) {
+                  if (context.mounted) {
+                    Utils.showPopUp(context, 'Error exporting MailMerge',
+                        Utils.getErrorMessage(e));
+                  }
                 }
               },
             ),

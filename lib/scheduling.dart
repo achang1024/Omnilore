@@ -338,7 +338,13 @@ class Scheduling {
   /// Output roster with CC information
   void outputRosterCC(String path) {
     if (getStateOfProcessing() != StateOfProcessing.output) return;
-    var content = '';
+    _fileStore.writeStringSync(path, outputRosterCCToString());
+  }
+
+  /// Build roster-with-coordinator text output
+  String outputRosterCCToString() {
+    if (getStateOfProcessing() != StateOfProcessing.output) return '';
+    var content = StringBuffer();
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
     for (var course in goCourses) {
@@ -351,24 +357,26 @@ class Scheduling {
       people.sort((a, b) => a.getReversedName().compareTo(b.getReversedName()));
       var cc = courseControl.getCoordinators(course)!;
 
-      content += '${courseData.name}\n';
-      content += '$course\t${getTimeslotDescription(timeSlot)}\n\n';
+      content.writeln(courseData.name);
+      content.writeln('$course\t${getTimeslotDescription(timeSlot)}');
+      content.writeln();
 
       for (var person in people) {
         if (person.getName() == cc.coordinators[0] && !cc.equal) {
-          content += '${person.getReversedName()} (C)\n';
+          content.writeln('${person.getReversedName()} (C)');
         } else if (person.getName() == cc.coordinators[0] ||
             person.getName() == cc.coordinators[1]) {
-          content += '${person.getReversedName()} (CC)\n';
+          content.writeln('${person.getReversedName()} (CC)');
         } else {
-          content += '${person.getReversedName()}\n';
+          content.writeln(person.getReversedName());
         }
       }
       if (course != goCourses.last) {
-        content += '\n\n';
+        content.writeln();
+        content.writeln();
       }
     }
-    _fileStore.writeStringSync(path, content);
+    return content.toString();
   }
 
   /// Output roster with phone number
@@ -378,7 +386,17 @@ class Scheduling {
         state != StateOfProcessing.output) {
       return;
     }
-    var content = '';
+    _fileStore.writeStringSync(path, outputRosterPhoneToString());
+  }
+
+  /// Build roster-with-phone text output
+  String outputRosterPhoneToString() {
+    var state = getStateOfProcessing();
+    if (state != StateOfProcessing.coordinator &&
+        state != StateOfProcessing.output) {
+      return '';
+    }
+    var content = StringBuffer();
     var goCourses = courseControl.getGo().toList(growable: false);
     goCourses.sort((a, b) => a.compareTo(b));
     for (var course in goCourses) {
@@ -390,26 +408,34 @@ class Scheduling {
           .toList(growable: false);
       people.sort((a, b) => a.getReversedName().compareTo(b.getReversedName()));
 
-      content += '${courseData.name}\n';
-      content += '$course\t${getTimeslotDescription(timeSlot)}\n\n';
+      content.writeln(courseData.name);
+      content.writeln('$course\t${getTimeslotDescription(timeSlot)}');
+      content.writeln();
       for (var person in people) {
         var personString = person.getReversedName();
-        content += personString;
+        content.write(personString);
         var padding = ' ' * (_people.maxLength - personString.length);
-        content += padding;
-        content += person.phone;
-        content += '\n';
+        content.write(padding);
+        content.write(person.phone);
+        content.writeln();
       }
       if (course != goCourses.last) {
-        content += '\n\n';
+        content.writeln();
+        content.writeln();
       }
     }
-    _fileStore.writeStringSync(path, content);
+    return content.toString();
   }
 
   /// Output mail merge file
   void outputMM(String path) {
     if (getStateOfProcessing() != StateOfProcessing.output) return;
+    _fileStore.writeStringSync(path, outputMMToString());
+  }
+
+  /// Build mail-merge text output
+  String outputMMToString() {
+    if (getStateOfProcessing() != StateOfProcessing.output) return '';
     Map<String, List<String>> coursesGiven = {};
     var entriesSorted = _people.people.entries.toList(growable: false);
     entriesSorted.sort((a, b) =>
@@ -425,8 +451,7 @@ class Scheduling {
       }
     }
     var dropped = courseControl.getDropped();
-    // This truncates existing file
-    _fileStore.writeStringSync(path, '');
+    var content = StringBuffer();
 
     // Output one line for each person
     for (var person in peopleSorted) {
@@ -482,8 +507,9 @@ class Scheduling {
         }
         line[17 + i * 3] = courseData.reading;
       }
-      _fileStore.writeStringSync(path, '${line.join('\t')}\n', append: true);
+      content.writeln(line.join('\t'));
     }
+    return content.toString();
   }
 
   /// Get timeslot description for time index

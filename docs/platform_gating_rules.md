@@ -8,7 +8,7 @@ isolated so non-desktop builds remain safe.
 1. Never import `package:desktop_window/desktop_window.dart` outside:
    - `lib/window_sizing/window_sizing_desktop.dart`
 2. Never import `dart:io` outside:
-   - `lib/platform_gate.dart`
+   - `lib/platform/desktop_platform_io.dart`
    - `lib/io/text_file_store_io.dart`
 3. Keep shared app entry code platform-safe:
    - `lib/main.dart` must call facades, not desktop APIs directly.
@@ -21,6 +21,8 @@ isolated so non-desktop builds remain safe.
 ## Current Facades
 - Window sizing facade:
   - `lib/window_sizing/window_sizing.dart`
+- Desktop platform gate:
+  - `lib/platform/desktop_platform.dart`
 - File I/O facade:
   - `lib/io/text_file_store.dart`
   - `lib/io/text_file_store_factory.dart`
@@ -30,3 +32,8 @@ isolated so non-desktop builds remain safe.
 - New platform-sensitive behavior uses conditional imports or injected adapters.
 - `./scripts/check_platform_gating.sh` passes.
 - `flutter analyze` and `flutter test` pass.
+
+## Dependency Decision
+- `desktop_window` is intentionally kept for desktop min-window enforcement.
+- Rationale: removing it would drop a current desktop UX constraint without a
+  replacement.
