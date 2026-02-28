@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_menu/flutter_menu.dart';
@@ -18,9 +20,9 @@ import 'package:omnilore_scheduler/widgets/table/schedule_row.dart';
 import 'package:omnilore_scheduler/widgets/utils.dart';
 
 import 'package:omnilore_scheduler/io/web_download_factory.dart' as web_dl;
+import 'package:omnilore_scheduler/io/autosave_store_factory.dart' as autosave;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-// For web download:
 
 const stateDescriptions = <String>[
   'Need Courses',
@@ -54,6 +56,11 @@ class _ScreenState extends State<Screen> {
   List<int> scheduleData = List<int>.filled(14, -1, growable: false);
   int mainSelected = 0;
   int coSelected = 0;
+
+  // Autosave state
+  Timer? _autosaveTimer;
+  String _lastAutoSavedContent = '';
+  bool _autosaveCheckDone = false;
 
   // Split preview state
   bool isShowingSplitPreview = false;
@@ -94,6 +101,24 @@ class _ScreenState extends State<Screen> {
         _updateScheduleData();
       }
     });
+    _scheduleAutosave();
+  }
+
+  void _scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(seconds: 3), _performAutosave);
+  }
+
+  void _performAutosave() {
+    var state = schedule.getStateOfProcessing();
+    if (state == StateOfProcessing.needCourses ||
+        state == StateOfProcessing.needPeople) {
+      return;
+    }
+    var content = schedule.exportStateToString();
+    if (content == _lastAutoSavedContent) return;
+    _lastAutoSavedContent = content;
+    autosave.saveAutosave(content);
   }
 
   /// Show split preview for the current class
@@ -194,6 +219,171 @@ class _ScreenState extends State<Screen> {
       currentRow = RowType.none;
       curClassRoster = [];
     });
+  }
+
+  /// Check for saved state and show restore dialog if applicable
+  void _checkForSavedState() {
+    if (_autosaveCheckDone) return;
+    _autosaveCheckDone = true;
+
+    var savedAutosave = autosave.loadAutosave();
+    var savedHardSave = autosave.loadHardSave();
+
+    if (savedAutosave == null && savedHardSave == null) return;
+
+    if (savedAutosave != null &&
+        savedHardSave != null &&
+        savedAutosave != savedHardSave) {
+      _showTwoOptionRestoreDialog(savedAutosave, savedHardSave);
+    } else {
+      var content = savedAutosave ?? savedHardSave!;
+      var label =
+          savedAutosave != null ? 'autosave' : 'last save';
+      _showSingleOptionRestoreDialog(content, label);
+    }
+  }
+
+  void _showSingleOptionRestoreDialog(String content, String label) {
+    var timestamp = label == 'autosave'
+        ? autosave.getAutosaveTimestamp()
+        : autosave.getHardSaveTimestamp();
+    var timeDisplay = timestamp != null
+        ? ' from ${_formatTimestamp(timestamp)}'
+        : '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Previous Session Found'),
+        content: Text(
+            'Found $label$timeDisplay. Would you like to restore it?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              autosave.clearAutosave();
+              autosave.clearHardSave();
+            },
+            child: const Text('Start Fresh'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(content);
+            },
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTwoOptionRestoreDialog(
+      String autosaveContent, String hardSaveContent) {
+    var autoTime = autosave.getAutosaveTimestamp();
+    var hardTime = autosave.getHardSaveTimestamp();
+    var autoDisplay =
+        autoTime != null ? ' (${_formatTimestamp(autoTime)})' : '';
+    var hardDisplay =
+        hardTime != null ? ' (${_formatTimestamp(hardTime)})' : '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Previous Session Found'),
+        content: Text(
+            'Found both an autosave$autoDisplay and a hard save$hardDisplay. '
+            'Which would you like to restore?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              autosave.clearAutosave();
+              autosave.clearHardSave();
+            },
+            child: const Text('Start Fresh'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(hardSaveContent);
+            },
+            child: Text('Last Hard Save$hardDisplay'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(autosaveContent);
+            },
+            child: Text('Continue from Autosave$autoDisplay'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _restoreState(String content) {
+    try {
+      schedule.loadStateFromBytes(content.codeUnits);
+      courses = schedule.getCourseCodes().toList();
+      numCourses = courses.length;
+      var dropped = schedule.courseControl.getDropped();
+      droppedList = List<bool>.generate(
+          numCourses!, (i) => dropped.contains(courses[i]));
+      compute(Change.drop);
+    } catch (e) {
+      if (mounted) {
+        Utils.showPopUp(
+            context, 'Error restoring state', Utils.getErrorMessage(e));
+      }
+    }
+  }
+
+  String _formatTimestamp(String isoTimestamp) {
+    try {
+      var dt = DateTime.parse(isoTimestamp);
+      var month = dt.month.toString().padLeft(2, '0');
+      var day = dt.day.toString().padLeft(2, '0');
+      var hour = dt.hour.toString().padLeft(2, '0');
+      var minute = dt.minute.toString().padLeft(2, '0');
+      return '$month/$day $hour:$minute';
+    } catch (_) {
+      return isoTimestamp;
+    }
+  }
+
+  void _showSaveAsDialog(String content) {
+    final controller = TextEditingController(text: 'schedule_v1');
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Save As'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Filename',
+            suffixText: '.txt',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              var name = controller.text.trim();
+              if (name.isEmpty) name = 'schedule';
+              web_dl.triggerDownload(content, '$name.txt');
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Helper function to update courses
@@ -336,6 +526,7 @@ class _ScreenState extends State<Screen> {
                   // User canceled the picker
                 }
                 compute(Change.people);
+                _checkForSavedState();
               },
               shortcut: MenuShortcut(key: LogicalKeyboardKey.keyP, ctrl: true),
             ),
@@ -343,9 +534,34 @@ class _ScreenState extends State<Screen> {
               title: 'Save',
               onPressed: () async {
                 try {
+                  final content = schedule.exportStateToString();
                   if (kIsWeb) {
-                    final content = schedule.exportStateToString();
                     web_dl.triggerDownload(content, 'scheduling_state.txt');
+                  } else {
+                    String? path = await FilePicker.platform.saveFile(
+                        type: FileType.custom, allowedExtensions: ['txt']);
+                    if (path != null && path != '') {
+                      schedule.exportState(path);
+                    }
+                  }
+                  autosave.saveHardSave(content);
+                  autosave.clearAutosave();
+                  _lastAutoSavedContent = content;
+                } catch (e) {
+                  if (context.mounted) {
+                    Utils.showPopUp(
+                        context, 'Error saving state', Utils.getErrorMessage(e));
+                  }
+                }
+              },
+            ),
+            MenuListItem(
+              title: 'Save As',
+              onPressed: () async {
+                try {
+                  final content = schedule.exportStateToString();
+                  if (kIsWeb) {
+                    _showSaveAsDialog(content);
                   } else {
                     String? path = await FilePicker.platform.saveFile(
                         type: FileType.custom, allowedExtensions: ['txt']);
@@ -385,6 +601,10 @@ class _ScreenState extends State<Screen> {
                       var dropped = schedule.courseControl.getDropped();
                       droppedList = List<bool>.generate(
                           numCourses!, (i) => dropped.contains(courses[i]));
+                      var loadedContent = schedule.exportStateToString();
+                      autosave.saveHardSave(loadedContent);
+                      autosave.clearAutosave();
+                      _lastAutoSavedContent = loadedContent;
                       compute(Change.drop);
                     } catch (e) {
                       if (context.mounted) {
