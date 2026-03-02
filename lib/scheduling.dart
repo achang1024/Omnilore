@@ -617,6 +617,16 @@ class Scheduling {
     _fileStore.writeStringSync(path, exportStateToString());
   }
 
+  void exportText(String path, String content) {
+    _fileStore.writeStringSync(path, content);
+  }
+
+  String readText(String path) {
+    final lines = _fileStore.readLinesSync(path);
+    if (lines.isEmpty) return '';
+    return '${lines.join('\n')}\n';
+  }
+
   /// Load intermediate state
   void loadState(String path) {
     List<String> lines = _fileStore.readLinesSync(path);

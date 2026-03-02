@@ -4,3 +4,6 @@ import 'package:omnilore_scheduler/io/web_download_stub.dart'
 
 void triggerDownload(String content, String filename) =>
     impl.triggerDownload(content, filename);
+
+Future<void> triggerSaveAs(String content, String suggestedName) =>
+    impl.triggerSaveAs(content, suggestedName);

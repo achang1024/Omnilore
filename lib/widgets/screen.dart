@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_menu/flutter_menu.dart';
@@ -18,9 +21,9 @@ import 'package:omnilore_scheduler/widgets/table/schedule_row.dart';
 import 'package:omnilore_scheduler/widgets/utils.dart';
 
 import 'package:omnilore_scheduler/io/web_download_factory.dart' as web_dl;
+import 'package:omnilore_scheduler/io/autosave_store_factory.dart' as autosave;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-// For web download:
 
 const stateDescriptions = <String>[
   'Need Courses',
@@ -55,6 +58,13 @@ class _ScreenState extends State<Screen> {
   int mainSelected = 0;
   int coSelected = 0;
 
+  // Autosave state
+  Timer? _autosaveTimer;
+  String _lastAutoSavedContent = '';
+  bool _autosaveCheckDone = false;
+  String? _courseSourceData;
+  String? _peopleSourceData;
+
   // Split preview state
   bool isShowingSplitPreview = false;
   String? splitCourseInProgress;
@@ -82,6 +92,12 @@ class _ScreenState extends State<Screen> {
   String? currentClass;
   RowType currentRow = RowType.none;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForSavedState());
+  }
+
   void compute(Change change) {
     setState(() {
       if (change == Change.course) {
@@ -94,6 +110,24 @@ class _ScreenState extends State<Screen> {
         _updateScheduleData();
       }
     });
+    _scheduleAutosave();
+  }
+
+  void _scheduleAutosave() {
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(seconds: 3), _performAutosave);
+  }
+
+  void _performAutosave() {
+    var state = schedule.getStateOfProcessing();
+    if (state == StateOfProcessing.needCourses ||
+        state == StateOfProcessing.needPeople) {
+      return;
+    }
+    var content = schedule.exportStateToString();
+    if (content == _lastAutoSavedContent) return;
+    _lastAutoSavedContent = content;
+    autosave.saveAutosave(content);
   }
 
   /// Show split preview for the current class
@@ -196,6 +230,264 @@ class _ScreenState extends State<Screen> {
     });
   }
 
+  /// Check for saved state and show restore dialog if applicable
+  void _checkForSavedState() {
+    if (_autosaveCheckDone) return;
+    _autosaveCheckDone = true;
+
+    var savedAutosave = autosave.loadAutosave();
+    var savedHardSave = autosave.loadHardSave();
+
+    if (savedAutosave == null && savedHardSave == null) return;
+
+    if (savedAutosave != null &&
+        savedHardSave != null &&
+        savedAutosave != savedHardSave) {
+      _showTwoOptionRestoreDialog(savedAutosave, savedHardSave);
+    } else {
+      var content = savedAutosave ?? savedHardSave!;
+      var label =
+          savedAutosave != null ? 'autosave' : 'last save';
+      _showSingleOptionRestoreDialog(content, label);
+    }
+  }
+
+  void _showSingleOptionRestoreDialog(String content, String label) {
+    var timestamp = label == 'autosave'
+        ? autosave.getAutosaveTimestamp()
+        : autosave.getHardSaveTimestamp();
+    var timeDisplay = timestamp != null
+        ? ' from ${_formatTimestamp(timestamp)}'
+        : '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Previous Session Found'),
+        content: Text(
+            'Found $label$timeDisplay. Would you like to restore it?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              autosave.clearAutosave();
+              autosave.clearHardSave();
+              autosave.clearCourseData();
+              autosave.clearPeopleData();
+            },
+            child: const Text('Start Fresh'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(content);
+            },
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTwoOptionRestoreDialog(
+      String autosaveContent, String hardSaveContent) {
+    var autoTime = autosave.getAutosaveTimestamp();
+    var hardTime = autosave.getHardSaveTimestamp();
+    var autoDisplay =
+        autoTime != null ? ' (${_formatTimestamp(autoTime)})' : '';
+    var hardDisplay =
+        hardTime != null ? ' (${_formatTimestamp(hardTime)})' : '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Previous Session Found'),
+        content: Text(
+            'Found both an autosave$autoDisplay and a hard save$hardDisplay. '
+            'Which would you like to restore?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              autosave.clearAutosave();
+              autosave.clearHardSave();
+              autosave.clearCourseData();
+              autosave.clearPeopleData();
+            },
+            child: const Text('Start Fresh'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(hardSaveContent);
+            },
+            child: Text('Last Hard Save$hardDisplay'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _restoreState(autosaveContent);
+            },
+            child: Text('Continue from Autosave$autoDisplay'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shows a loading dialog with [message] while [work] executes, then
+  /// dismisses it. The dialog is non-dismissible so the user can't tap away.
+    Future<void> _withLoadingDialog(
+      String message, Future<void> Function() work,
+      {bool showSpinner = true}) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: showSpinner
+              ? Row(
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(width: 20),
+                    Expanded(child: Text(message)),
+                  ],
+                )
+              : Text(message),
+        ),
+      ),
+    );
+    // Yield so Flutter can paint the dialog before heavy sync work begins.
+    await Future.delayed(const Duration(milliseconds: 50));
+    try {
+      await work();
+    } finally {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  Future<void> _restoreState(String content) async {
+    await _withLoadingDialog('Restoring session...', () async {
+      try {
+        var courseData = _courseSourceData ?? autosave.loadCourseData();
+        var peopleData = _peopleSourceData ?? autosave.loadPeopleData();
+
+        if (courseData == null || peopleData == null) {
+          if (mounted) {
+            Utils.showPopUp(context, 'Cannot Restore',
+                'Saved course or people data not found. Please import courses and people manually.');
+          }
+          return;
+        }
+
+        await schedule.loadCoursesFromBytes(utf8.encode(courseData));
+        numCourses = schedule.getCourseCodes().length;
+        droppedList = List<bool>.filled(numCourses!, false, growable: true);
+        await Future.delayed(Duration.zero); // yield for UI
+        await schedule.loadPeopleFromBytes(utf8.encode(peopleData));
+        numPeople = schedule.getNumPeople();
+        await Future.delayed(Duration.zero); // yield for UI
+
+        schedule.loadStateFromBytes(content.codeUnits);
+        // Rebuild droppedList from actual state after loadStateFromBytes
+        final restoredCourses = schedule.getCourseCodes().toList();
+        final dropped = schedule.courseControl.getDropped();
+        numCourses = restoredCourses.length;
+        droppedList = List<bool>.generate(
+            numCourses!, (i) => dropped.contains(restoredCourses[i]));
+        compute(Change.course);
+      } catch (e) {
+        if (mounted) {
+          Utils.showPopUp(
+              context, 'Error restoring state', Utils.getErrorMessage(e));
+        }
+      }
+    });
+  }
+
+  String _formatTimestamp(String isoTimestamp) {
+    try {
+      var dt = DateTime.parse(isoTimestamp);
+      var month = dt.month.toString().padLeft(2, '0');
+      var day = dt.day.toString().padLeft(2, '0');
+      var hour = dt.hour.toString().padLeft(2, '0');
+      var minute = dt.minute.toString().padLeft(2, '0');
+      return '$month/$day $hour:$minute';
+    } catch (_) {
+      return isoTimestamp;
+    }
+  }
+
+  /// Builds a save file that embeds raw course and people data before the
+  /// state section, making it a self-contained file.
+  String _buildBundledSaveContent() {
+    final state = schedule.exportStateToString();
+    final courseData = _courseSourceData ?? autosave.loadCourseData();
+    final peopleData = _peopleSourceData ?? autosave.loadPeopleData();
+    if (courseData == null || peopleData == null) return state;
+    return 'CourseFile:\n${courseData}PeopleFile:\n$peopleData$state';
+  }
+
+  /// Loads a save file that may contain embedded CourseFile/PeopleFile
+  /// sections. If present, reinitializes and reimports courses and people
+  /// from the embedded data before loading state.
+  Future<void> _loadBundledState(List<int> bytes) async {
+    final text = utf8.decode(bytes);
+    final lines = const LineSplitter().convert(text);
+
+    if (lines.isNotEmpty && lines[0].trim() == 'CourseFile:') {
+      final courseLines = <String>[];
+      int i = 1;
+      while (i < lines.length && lines[i].trim() != 'PeopleFile:') {
+        courseLines.add(lines[i]);
+        i++;
+      }
+      final courseText = '${courseLines.join('\n')}\n';
+
+      final peopleLines = <String>[];
+      i++; // skip 'PeopleFile:'
+      while (i < lines.length && lines[i].trim() != 'Setting:') {
+        peopleLines.add(lines[i]);
+        i++;
+      }
+      final peopleText = '${peopleLines.join('\n')}\n';
+
+      setState(() {
+        schedule = Scheduling();
+      });
+      await schedule.loadCoursesFromBytes(utf8.encode(courseText));
+      _courseSourceData = courseText;
+      autosave.saveCourseData(courseText);
+      await Future.delayed(Duration.zero); // yield for UI
+      await schedule.loadPeopleFromBytes(utf8.encode(peopleText));
+      _peopleSourceData = peopleText;
+      autosave.savePeopleData(peopleText);
+      await Future.delayed(Duration.zero); // yield for UI
+    }
+
+    schedule.loadStateFromBytes(bytes);
+    final loadedCourses = schedule.getCourseCodes().toList();
+    final loadedNumCourses = loadedCourses.length;
+    final dropped = schedule.courseControl.getDropped();
+    final loadedDropped = List<bool>.generate(
+        loadedNumCourses, (i) => dropped.contains(loadedCourses[i]));
+    final loadedContent = schedule.exportStateToString();
+    autosave.saveHardSave(loadedContent);
+    autosave.clearAutosave();
+    setState(() {
+      numCourses = loadedNumCourses;
+      numPeople = schedule.getNumPeople();
+      droppedList = loadedDropped;
+      _lastAutoSavedContent = loadedContent;
+    });
+    compute(Change.course);
+  }
+
   /// Helper function to update courses
   void _updateCourses() {
     courses = schedule.getCourseCodes().toList();
@@ -272,19 +564,27 @@ class _ScreenState extends State<Screen> {
               title: 'Import Course',
               onPressed: () async {
                 FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom, allowedExtensions: ['txt']);
+                    type: FileType.custom,
+                    allowedExtensions: ['txt'],
+                    withData: true);
 
                 if (result != null) {
                   try {
                     late int? newNumCourses;
-                    // On web, use bytes; on native platforms, use path
+                    // Prefer bytes on all platforms so we can persist exact
+                    // raw input for bundled saves/autosave restore.
                     if (result.files.single.bytes != null) {
+                      final bytes = result.files.single.bytes!;
                       newNumCourses =
-                          await schedule.loadCoursesFromBytes(result.files.single.bytes!);
+                          await schedule.loadCoursesFromBytes(bytes);
+                      _courseSourceData = utf8.decode(bytes);
+                      autosave.saveCourseData(_courseSourceData!);
                     } else {
                       String path = result.files.single.path ?? '';
                       if (path != '') {
                         newNumCourses = await schedule.loadCourses(path);
+                        _courseSourceData = schedule.readText(path);
+                        autosave.saveCourseData(_courseSourceData!);
                       }
                     }
                     if (newNumCourses != null) {
@@ -308,19 +608,26 @@ class _ScreenState extends State<Screen> {
               icon: Icons.open_in_new,
               onPressed: () async {
                 FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom, allowedExtensions: ['txt']);
+                    type: FileType.custom,
+                    allowedExtensions: ['txt'],
+                    withData: true);
 
                 if (result != null) {
                   try {
                     int? newNumPeople;
                     // On web, use bytes; on native platforms, use path
                     if (result.files.single.bytes != null) {
+                      final bytes = result.files.single.bytes!;
                       newNumPeople =
-                          await schedule.loadPeopleFromBytes(result.files.single.bytes!);
+                          await schedule.loadPeopleFromBytes(bytes);
+                      _peopleSourceData = utf8.decode(bytes);
+                      autosave.savePeopleData(_peopleSourceData!);
                     } else {
                       String path = result.files.single.path ?? '';
                       if (path != '') {
                         newNumPeople = await schedule.loadPeople(path);
+                        _peopleSourceData = schedule.readText(path);
+                        autosave.savePeopleData(_peopleSourceData!);
                       }
                     }
                     if (newNumPeople != null) {
@@ -336,6 +643,7 @@ class _ScreenState extends State<Screen> {
                   // User canceled the picker
                 }
                 compute(Change.people);
+                _checkForSavedState();
               },
               shortcut: MenuShortcut(key: LogicalKeyboardKey.keyP, ctrl: true),
             ),
@@ -343,14 +651,45 @@ class _ScreenState extends State<Screen> {
               title: 'Save',
               onPressed: () async {
                 try {
+                  final stateContent = schedule.exportStateToString();
+                  final bundledContent = _buildBundledSaveContent();
                   if (kIsWeb) {
-                    final content = schedule.exportStateToString();
-                    web_dl.triggerDownload(content, 'scheduling_state.txt');
+                    await _withLoadingDialog('Saving...', () async {
+                      web_dl.triggerDownload(
+                          bundledContent, 'scheduling_state.txt');
+                    });
                   } else {
                     String? path = await FilePicker.platform.saveFile(
                         type: FileType.custom, allowedExtensions: ['txt']);
                     if (path != null && path != '') {
-                      schedule.exportState(path);
+                      schedule.exportText(path, bundledContent);
+                    }
+                  }
+                  autosave.saveHardSave(stateContent);
+                  autosave.clearAutosave();
+                  _lastAutoSavedContent = stateContent;
+                } catch (e) {
+                  if (context.mounted) {
+                    Utils.showPopUp(
+                        context, 'Error saving state', Utils.getErrorMessage(e));
+                  }
+                }
+              },
+            ),
+            MenuListItem(
+              title: 'Save As',
+              onPressed: () async {
+                try {
+                  final content = _buildBundledSaveContent();
+                  if (kIsWeb) {
+                    await _withLoadingDialog('Saving...', () async {
+                      await web_dl.triggerSaveAs(content, 'scheduling_state.txt');
+                    });
+                  } else {
+                    String? path = await FilePicker.platform.saveFile(
+                        type: FileType.custom, allowedExtensions: ['txt']);
+                    if (path != null && path != '') {
+                      schedule.exportText(path, content);
                     }
                   }
                 } catch (e) {
@@ -366,33 +705,26 @@ class _ScreenState extends State<Screen> {
               shortcut: MenuShortcut(key: LogicalKeyboardKey.keyD, ctrl: true),
               onPressed: () async {
                 FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom, allowedExtensions: ['txt']);
+                    type: FileType.custom,
+                    allowedExtensions: ['txt'],
+                    withData: true);
 
                 if (result != null) {
-                  setState(() {
-                    try {
-                      // On web, use bytes; on native platforms, use path
+                  try {
+                    await _withLoadingDialog('Loading...', () async {
                       if (result.files.single.bytes != null) {
-                        schedule.loadStateFromBytes(result.files.single.bytes!);
+                        await _loadBundledState(result.files.single.bytes!);
                       } else {
-                        String path = result.files.single.path ?? '';
-                        if (path != '') {
-                          schedule.loadState(path);
-                        }
+                        throw StateError(
+                            'File bytes are unavailable; please enable file data in picker.');
                       }
-                      courses = schedule.getCourseCodes().toList();
-                      numCourses = courses.length;
-                      var dropped = schedule.courseControl.getDropped();
-                      droppedList = List<bool>.generate(
-                          numCourses!, (i) => dropped.contains(courses[i]));
-                      compute(Change.drop);
-                    } catch (e) {
-                      if (context.mounted) {
-                        Utils.showPopUp(
-                            context, 'Error loading state', Utils.getErrorMessage(e));
-                      }
+                    }, showSpinner: false);
+                  } catch (e) {
+                    if (context.mounted) {
+                      Utils.showPopUp(
+                          context, 'Error loading state', Utils.getErrorMessage(e));
                     }
-                  });
+                  }
                 }
               },
             ),
