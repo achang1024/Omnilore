@@ -40,7 +40,8 @@ class NamesDisplayMode extends StatelessWidget {
           ElevatedButton(
               onPressed: onImplSplit, child: const Text('Imp. Splits')),
           ElevatedButton(
-              onPressed: onShowCoords, child: const Text('Show Coord(s)')),
+              onPressed: coordinatorMode == 'none' ? onShowCoords : null,
+              child: const Text('Show Coord(s)')),
           ElevatedButton(onPressed: onSetC, child: Text(setcLabel)),
           ElevatedButton(
               onPressed: onSetCC, child: Text(setccLabel)),
